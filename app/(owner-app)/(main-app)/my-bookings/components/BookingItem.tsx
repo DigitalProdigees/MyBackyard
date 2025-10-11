@@ -87,6 +87,9 @@ export function BookingItem({
         visible={showFeedbackDialog}
         onClose={() => setShowFeedbackDialog(false)}
         onSubmit={handleFeedbackSubmit}
+        isAlreadyReviewed={false}
+        existingRating={0}
+        existingReview=""
       />
     </View>
   );

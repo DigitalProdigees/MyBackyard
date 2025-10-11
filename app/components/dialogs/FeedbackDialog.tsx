@@ -82,7 +82,7 @@ export default function FeedbackDialog({
       onRequestClose={onClose}
     >
       <KeyboardAvoidingView 
-        style={[styles.overlay, Platform.OS === 'android' ? { opacity: fadeAnim } : { opacity: visible ? 1 : 0 }]} 
+        style={[styles.overlay, { opacity: visible ? 1 : 0 }]} 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <View style={styles.modalContainer}>
@@ -107,8 +107,8 @@ export default function FeedbackDialog({
                   '#202857'
                 ]}
                 style={StyleSheet.absoluteFill}
-                start={{ x: -0.9, y: -0.9 }}
-                end={{ x: 1.1, y: 0.3 }}
+                start={[-0.9, -0.9]}
+                end={[1.1, 0.3]}
                 locations={[0, 0.1, 0.1, 0.45, 0.9, 0.1]}
               />
               <View style={styles.content}>
