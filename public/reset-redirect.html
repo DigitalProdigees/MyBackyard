@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <script>
+      (function () {
+        const urlParams = new URLSearchParams(window.location.search);
+        const deepLink = urlParams.get('link') || window.location.href;
+        const parsedLink = new URL(deepLink);
+
+        const mode = parsedLink.searchParams.get('mode');
+        const oobCode = parsedLink.searchParams.get('oobCode');
+
+        if (mode === 'resetPassword' && oobCode) {
+          window.location.href = `mybackyard:///(auth)/reset-password?oobCode=${oobCode}`;
+        } else {
+          document.body.innerText = 'Invalid password reset link.';
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    Redirecting...
+  </body>
+</html>

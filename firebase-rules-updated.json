@@ -1,0 +1,125 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "users": {
+      "$uid": {
+        ".read": "auth != null",
+        ".write": "auth != null && auth.uid === $uid",
+        "fullName": {
+          ".read": "auth != null"
+        },
+        "displayName": {
+          ".read": "auth != null"
+        },
+        "type": {
+          ".read": "auth != null && auth.uid === $uid",
+          ".write": "auth != null && auth.uid === $uid"
+        },
+        "status": {
+          ".read": "auth != null",
+          ".write": "auth != null && auth.uid === $uid"
+        },
+        "lastSeen": {
+          ".read": "auth != null",
+          ".write": "auth != null && auth.uid === $uid"
+        },
+        "profileImage": {
+          ".read": "auth != null",
+          ".write": "auth != null && auth.uid === $uid"
+        },
+        "profileImageMimeType": {
+          ".read": "auth != null",
+          ".write": "auth != null && auth.uid === $uid"
+        },
+        "profileImageUrl": {
+          ".read": "auth != null",
+          ".write": "auth != null && auth.uid === $uid"
+        },
+        "listings": {
+          "$listingId": {
+            ".read": "auth != null && auth.uid === $uid",
+            ".write": "auth != null && auth.uid === $uid"
+          }
+        },
+        "conversations": {
+          ".read": "auth != null && auth.uid === $uid",
+          ".write": "auth != null"
+        },
+        "contacts": {
+          "$contactId": {
+            ".read": "auth != null && auth.uid === $uid",
+            ".write": "auth != null && auth.uid === $uid"
+          }
+        },
+        "bookings": {
+          "$bookingId": {
+            ".read": "auth != null && auth.uid === $uid",
+            ".write": "auth != null"
+          }
+        },
+        "ownerBookings": {
+          "$bookingId": {
+            ".read": "auth != null && auth.uid === $uid",
+            ".write": "auth != null && auth.uid === $uid"
+          }
+        }
+      }
+    },
+    "listings": {
+      ".read": "auth != null",
+      "$listingId": {
+        ".read": true,
+        ".write": "auth != null && ( (!data.exists() && newData.child('ownerId').val() === auth.uid) || (data.exists() && data.child('ownerId').val() === auth.uid) )",
+        "averageRating": {
+          ".write": "auth != null"
+        },
+        "reviewCount": {
+          ".write": "auth != null"
+        },
+        "bookings": {
+          "$bookingId": {
+            ".read": "auth != null",
+            ".write": "auth != null"
+          }
+        },
+        "reviews": {
+          "$reviewId": {
+            ".read": "auth != null",
+            ".write": "auth != null"
+          }
+        }
+      }
+    },
+    "bookings": {
+      ".indexOn": ["listingId"],
+      ".read": "auth != null",
+      "$bookingId": {
+        ".read": "auth != null && ( data.child('renterId').val() === auth.uid || data.child('listingInfo/ownerId').val() === auth.uid )",
+        ".write": "auth != null && ( (!data.exists() && newData.child('renterId').val() === auth.uid) || (data.exists() && ( data.child('listingInfo/ownerId').val() === auth.uid || data.child('renterId').val() === auth.uid )) )"
+      }
+    },
+    "conversations": {
+      "$convId": {
+        ".read": "auth != null",
+        ".write": "auth != null",
+        "messages": {
+          "$msgId": {
+            ".read": "auth != null",
+            ".write": "auth != null"
+          }
+        }
+      }
+    },
+    "messages": {
+      "$msgId": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      }
+    },
+    "online_users": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    }
+  }
+}
