@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, ScrollView, Image, TouchableOpacity, Dimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { Ionicons } from '@expo/vector-icons';
 
 import { BookingItem } from './components/BookingItem';
 import { StyleSheet } from 'react-native';
@@ -8,42 +9,13 @@ import { router } from 'expo-router';
 import { GradientBackground, Header } from '@/app/components';
 import { Icons } from '@/constants/icons';
 
-// Sample booking data
-const BOOKINGS = [
-  {
-    id: '1',
-    dates: '15th - 16th',
-    month: 'March',
-    year: '2023',
-    backyardName: 'Backyard Name',
-    location: 'Washington DC, USA',
-    isPaid: true,
-  },
-  {
-    id: '2',
-    dates: '15th - 16th',
-    month: 'March',
-    year: '2023',
-    backyardName: 'Backyard Name',
-    location: 'Washington DC, USA',
-    isPaid: true,
-  },
-  {
-    id: '3',
-    dates: '15th - 16th',
-    month: 'March',
-    year: '2023',
-    backyardName: 'Backyard Name',
-    location: 'Washington DC, USA',
-    isPaid: true,
-  },
-];
+
 
 type FilterType = 'all' | 'upcoming' | 'past';
 const { width, height } = Dimensions.get('window');
 
 export default function MyBookings() {
-  const [bookings, setBookings] = useState(BOOKINGS);
+  const [bookings, setBookings] = useState<any[]>([]);
   const [activeFilter, setActiveFilter] = useState<FilterType>('all');
 
   const handleFilterPress = (filter: FilterType) => {
@@ -113,9 +85,10 @@ export default function MyBookings() {
           </ScrollView>
         ) : (
           <View style={styles.emptyContainer}>
-            <Image
-              source={Icons.notification}
-              style={styles.emptyIcon}
+            <Ionicons
+              name="calendar-outline"
+              size={60}
+              color="rgba(255, 255, 255, 0.5)"
             />
             <Text style={styles.emptyText}>
               You have no bookings yet
@@ -161,13 +134,6 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 100,
-  },
-  emptyIcon: {
-    width: 60,
-    height: 60,
-    marginBottom: 16,
-    opacity: 0.5,
   },
   emptyText: {
     fontFamily: 'Urbanist',

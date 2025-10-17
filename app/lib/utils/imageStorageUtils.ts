@@ -22,7 +22,7 @@ export const convertImageToWebP = async (imageUri: string, quality: number = 0.8
     );
     return result.uri;
   } catch (error) {
-    console.error('Error converting image to WebP:', error);
+    console.log('Error converting image to WebP:', error);
     throw error;
   }
 };
@@ -62,7 +62,7 @@ export const uploadImageToStorage = async (
       path: snapshot.ref.fullPath
     };
   } catch (error) {
-    console.error('Error uploading image to storage:', error);
+    console.log('Error uploading image to storage:', error);
     throw error;
   }
 };
@@ -83,7 +83,7 @@ export const uploadMultipleImagesToStorage = async (
     const results = await Promise.all(uploadPromises);
     return results;
   } catch (error) {
-    console.error('Error uploading multiple images to storage:', error);
+    console.log('Error uploading multiple images to storage:', error);
     throw error;
   }
 };
@@ -96,7 +96,7 @@ export const deleteImageFromStorage = async (imagePath: string): Promise<void> =
     const imageRef = ref(storage, imagePath);
     await deleteObject(imageRef);
   } catch (error) {
-    console.error('Error deleting image from storage:', error);
+    console.log('Error deleting image from storage:', error);
     throw error;
   }
 };
@@ -109,7 +109,7 @@ export const deleteMultipleImagesFromStorage = async (imagePaths: string[]): Pro
     const deletePromises = imagePaths.map(path => deleteImageFromStorage(path));
     await Promise.all(deletePromises);
   } catch (error) {
-    console.error('Error deleting multiple images from storage:', error);
+    console.log('Error deleting multiple images from storage:', error);
     throw error;
   }
 };
@@ -166,7 +166,7 @@ export const uploadListingImages = async (
 
     return results;
   } catch (error) {
-    console.error('Error uploading listing images:', error);
+    console.log('Error uploading listing images:', error);
     throw error;
   }
 };

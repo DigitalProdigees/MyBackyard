@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Image, TextInput, StyleSheet, Dimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { router, useFocusEffect, useNavigation } from 'expo-router';
+import { useNavigationState } from '@react-navigation/native';
 
 import { Contact } from './types';
 import { ContactItem } from './components/ContactItem';
@@ -23,6 +24,7 @@ export default function Messaging() {
   const chatService = ChatService.getInstance();
   const conversationsRef = useRef<ChatConversation[]>([]);
   const returningFromChatRef = useRef<boolean>(false);
+  const navigationState = useNavigationState(state => state);
 
   useEffect(() => {
     loadConversations();
@@ -146,7 +148,7 @@ export default function Messaging() {
               await loadConversations();
             }
           } catch (error) {
-            console.error('Owner Messaging: Error resetting unread counts:', error);
+            console.log('Owner Messaging: Error resetting unread counts:', error);
             // Still load conversations even if reset fails
             loadConversations();
           }
@@ -247,7 +249,7 @@ export default function Messaging() {
       // Load profile images for all contacts
       loadProfileImages(chatConversations);
     } catch (error) {
-      console.error('Error loading conversations:', error);
+      console.log('Error loading conversations:', error);
     } finally {
       setIsLoading(false);
     }
@@ -275,7 +277,7 @@ export default function Messaging() {
 
       setProfileImages(imageMap);
     } catch (error) {
-      console.error('Error loading profile images:', error);
+      console.log('Error loading profile images:', error);
     }
   };
 
@@ -319,7 +321,20 @@ export default function Messaging() {
 
       <View style={{ paddingTop: 26 }} /><Header
         customLeftComponent={
-          <TouchableOpacity onPress={() => router.back()}>
+          <TouchableOpacity onPress={() => {
+            // Check if we have navigation history
+            const hasHistory = navigationState?.routes && navigationState.routes.length > 1;
+            console.log('Owner Messaging back button pressed:', {
+              hasHistory,
+              routesLength: navigationState?.routes?.length,
+              routes: navigationState?.routes?.map(r => r.name)
+            });
+            if (hasHistory) {
+              router.back();
+            } else {
+              router.push('/(owner-app)/(main-app)/home');
+            }
+          }}>
             <Image
               source={Icons.back}
               style={{
@@ -444,7 +459,7 @@ export default function Messaging() {
       </ScrollView>
 
       {/* Compose Button */}
-      <TouchableOpacity
+      {/* <TouchableOpacity
         style={styles.composeButton}
         onPress={handleComposePress}
       >
@@ -453,7 +468,7 @@ export default function Messaging() {
           style={styles.buttonIcon}
           resizeMode="contain"
         />
-      </TouchableOpacity>
+      </TouchableOpacity> */}
     </View>
   );
 }

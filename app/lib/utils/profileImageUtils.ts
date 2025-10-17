@@ -77,7 +77,7 @@ export const getCurrentUserProfileImage = async (): Promise<ProfileImageData | n
     
     return null;
   } catch (error) {
-    console.error('Error getting current user profile image:', error);
+    console.log('Error getting current user profile image:', error);
     return null;
   }
 };
@@ -122,7 +122,7 @@ export const getUserProfileImage = async (userId: string): Promise<ProfileImageD
     
     return null;
   } catch (error) {
-    console.error('Error getting user profile image:', error);
+    console.log('Error getting user profile image:', error);
     return null;
   }
 };

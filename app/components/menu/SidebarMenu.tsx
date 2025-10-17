@@ -43,33 +43,78 @@ export function SidebarMenu({ isVisible, onClose, profileInfo, onEditProfile }: 
   const [notificationsEnabled, setNotificationsEnabled] = React.useState(true);
   const [showLogoutAlert, setShowLogoutAlert] = React.useState(false);
   const [unreadCount, setUnreadCount] = useState<number>(0);
+  const [profileImage, setProfileImage] = useState<string | null>(null);
+  const [locationText, setLocationText] = useState<string>('');
+  const [displayName, setDisplayName] = useState<string>('');
   const { user } = useAuth();
 
-  // Debug: Log unread count changes
+  // Load profile data from Firebase
   useEffect(() => {
-    console.log('SidebarMenu: Unread count changed to:', unreadCount);
-  }, [unreadCount]);
+    if (!isVisible || !user?.id) return;
 
-  // Track unread messages
+    const userRef = ref(rtdb, `users/${user.id}`);
+    const nameRef = ref(rtdb, `users/${user.id}/fullName`);
+    
+    const unsubUser = onValue(userRef, (snap) => {
+      const data = snap.val() || {};
+      const country = data.country || '';
+      const city = data.city || '';
+      const stateVal = data.state || '';
+      const parts = [city, stateVal, country].filter(Boolean);
+      setLocationText(parts.length ? parts.join(', ') : 'Update your location');
+      
+      // Load profile image - try Storage URL first, fallback to base64
+      if (data.profileImageUrl) {
+        setProfileImage(data.profileImageUrl);
+      } else if (data.profileImage) {
+        const mimeType = data.profileImageMimeType || 'image/jpeg';
+        const imageUri = `data:${mimeType};base64,${data.profileImage}`;
+        setProfileImage(imageUri);
+      }
+    });
+
+    const unsubName = onValue(nameRef, (snap) => {
+      const v = snap.val();
+      if (v) setDisplayName(String(v));
+    });
+
+    return () => {
+      try { off(userRef); } catch { }
+      try { off(nameRef); } catch { }
+      try { unsubUser(); } catch { }
+      try { unsubName(); } catch { }
+    };
+  }, [user?.id, isVisible]);
+
+  // Track unread conversations (count conversations, not messages)
   useEffect(() => {
-    const trackUnreadMessages = async () => {
+    const trackUnreadConversations = async () => {
       if (user?.id) {
         try {
           const chatService = ChatService.getInstance();
-          const count = await chatService.getTotalUnreadCount(user.id);
-          setUnreadCount(count);
+          const conversations = await chatService.getChatConversations();
+          let unreadConversationsCount = 0;
+          
+          for (const conversation of conversations) {
+            if (conversation.unreadCount && conversation.unreadCount > 0) {
+              unreadConversationsCount += 1; // Count conversations, not messages
+            }
+          }
+          
+          console.log('SidebarMenu: Total unread conversations count:', unreadConversationsCount);
+          setUnreadCount(unreadConversationsCount);
         } catch (error) {
-          console.error('Error tracking unread messages:', error);
+          console.log('Error tracking unread conversations:', error);
         }
       }
     };
 
     if (isVisible) {
-      trackUnreadMessages();
+      trackUnreadConversations();
     }
   }, [user?.id, isVisible]);
 
-  // Set up real-time listener for unread messages
+  // Set up real-time listener for unread conversations
   useEffect(() => {
     if (user?.id && isVisible) {
       const conversationsRef = ref(rtdb, `users/${user.id}/conversations`);
@@ -81,24 +126,25 @@ export function SidebarMenu({ isVisible, onClose, profileInfo, onEditProfile }: 
           }
 
           const conversations = snapshot.val();
-          let totalUnread = 0;
+          let unreadConversationsCount = 0;
 
           for (const conversationId in conversations) {
             const conversation = conversations[conversationId];
             if (conversation.unreadCount && conversation.unreadCount > 0) {
-              totalUnread += conversation.unreadCount;
+              unreadConversationsCount += 1; // Count conversations, not messages
             }
           }
 
-          setUnreadCount(totalUnread);
+          console.log('SidebarMenu: Real-time unread conversations count:', unreadConversationsCount);
+          setUnreadCount(unreadConversationsCount);
         } catch (error) {
-          console.error('Error updating unread count in sidebar:', error);
+          console.log('Error updating unread count in sidebar:', error);
         }
       });
 
       return () => {
-        off(conversationsRef);
-        unsubscribe();
+        try { off(conversationsRef); } catch { }
+        try { unsubscribe(); } catch { }
       };
     }
   }, [user?.id, isVisible]);
@@ -154,7 +200,7 @@ export function SidebarMenu({ isVisible, onClose, profileInfo, onEditProfile }: 
       const { auth } = await import('../../lib/firebase');
       await signOut(auth);
     } catch (error) {
-      console.error('Logout error:', error);
+      console.log('Logout error:', error);
     }
   };
 
@@ -164,19 +210,28 @@ export function SidebarMenu({ isVisible, onClose, profileInfo, onEditProfile }: 
 
   const menuItems: MenuItemData[] = [
     {
-      id: 'orders',
-      title: 'My Order',
-      onPress: () => console.log('Navigate to My Orders'),
+      id: 'home',
+      title: 'Home',
+      onPress: () => {
+        onClose();
+        router.replace('/(main-app)/home');
+      },
     },
     {
-      id: 'listings',
-      title: 'My Listings',
-      onPress: () => console.log('Navigate to My Listings'),
+      id: 'bookings',
+      title: 'My Bookings',
+      onPress: () => {
+        onClose();
+        router.push('/(main-app)/my-bookings');
+      },
     },
     {
       id: 'messaging',
       title: 'Messaging',
-      onPress: () => router.push('/(main-app)/messaging'),
+      onPress: () => {
+        onClose();
+        router.push('/(main-app)/messaging');
+      },
       rightComponent: unreadCount > 0 ? (
         <UnreadBanner count={unreadCount} size="small" position="top-right" />
       ) : undefined,
@@ -184,7 +239,7 @@ export function SidebarMenu({ isVisible, onClose, profileInfo, onEditProfile }: 
     {
       id: 'notifications',
       title: 'Notifications',
-      onPress: () => router.push('/(main-app)/notifications'),
+      onPress: () => {}, // No navigation, just toggle
       rightComponent: (
         <Switch
           value={notificationsEnabled}
@@ -201,27 +256,42 @@ export function SidebarMenu({ isVisible, onClose, profileInfo, onEditProfile }: 
     {
       id: 'changePassword',
       title: 'Change Password',
-      onPress: () => router.push('/(auth)/reset-password'),
+      onPress: () => {
+        onClose();
+        router.push('/(main-app)/change-pass');
+      },
     },
     {
       id: 'resetPassword',
       title: 'Reset Password',
-      onPress: () => router.push('/(auth)/forgot-password'),
+      onPress: () => {
+        onClose();
+        router.push('/(main-app)/reset-pass');
+      },
     },
     {
       id: 'contactUs',
       title: 'Contact Us',
-      onPress: () => router.push('/(main-app)/contact-us'),
+      onPress: () => {
+        onClose();
+        router.push('/(main-app)/contact-us');
+      },
     },
     {
       id: 'terms',
       title: 'Terms of Services',
-      onPress: () => router.push('/(auth)/terms-conditions'),
+      onPress: () => {
+        onClose();
+        router.push('/(main-app)/terms-conditions');
+      },
     },
     {
       id: 'privacy',
       title: 'Privacy Policy',
-      onPress: () => router.push('/(auth)/privacy-policy'),
+      onPress: () => {
+        onClose();
+        router.push('/(main-app)/privacy-policy');
+      },
     },
   ];
 
@@ -236,9 +306,9 @@ export function SidebarMenu({ isVisible, onClose, profileInfo, onEditProfile }: 
 
         {/* Profile section */}
         <ProfileSection
-          name={profileInfo.name}
-          location={profileInfo.location}
-          avatar={profileInfo.avatar}
+          name={displayName || profileInfo.name}
+          location={locationText || profileInfo.location}
+          avatar={profileImage || profileInfo.avatar}
           onEditPress={handleEditProfile}
         />
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, Image, TouchableOpacity, Dimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { Ionicons } from '@expo/vector-icons';
 import { GradientBackground } from '../../components/GradientBackground';
 import { Header } from '../../components/Header';
 import { Icons } from '../../../constants/icons';
@@ -77,7 +78,7 @@ export default function MyBookings() {
           }
         }
       } catch (error) {
-        console.error('Error fetching listing image for', listingId, ':', error);
+        console.log('Error fetching listing image for', listingId, ':', error);
       }
     }
     
@@ -169,7 +170,7 @@ export default function MyBookings() {
           setBookings([]);
         }
       } catch (error) {
-        console.error('Error processing bookings data:', error);
+        console.log('Error processing bookings data:', error);
         setBookings([]);
       } finally {
         setLoading(false);
@@ -240,7 +241,7 @@ export default function MyBookings() {
             setBookings(bookingsArray);
           }
         }).catch((error) => {
-          console.error('Error refreshing bookings:', error);
+          console.log('Error refreshing bookings:', error);
         });
       }
     }, [])
@@ -332,9 +333,10 @@ export default function MyBookings() {
           </ScrollView>
         ) : (
           <View style={styles.emptyContainer}>
-            <Image
-              source={Icons.notification}
-              style={styles.emptyIcon}
+            <Ionicons
+              name="calendar-outline"
+              size={60}
+              color="rgba(255, 255, 255, 0.5)"
             />
             <Text style={styles.emptyText}>
               You have no bookings yet
@@ -381,12 +383,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 100,
-  },
-  emptyIcon: {
-    width: 60,
-    height: 60,
-    marginBottom: 16,
-    opacity: 0.5,
   },
   emptyText: {
     fontFamily: 'Urbanist',

@@ -14,7 +14,7 @@ export const hasSeenOnboarding = async (): Promise<boolean> => {
     const value = await AsyncStorage.getItem(ONBOARDING_KEY);
     return value === 'true';
   } catch (error) {
-    console.error('Error checking onboarding status:', error);
+    console.log('Error checking onboarding status:', error);
     return false;
   }
 };
@@ -27,7 +27,7 @@ export const markOnboardingCompleted = async (): Promise<void> => {
     await AsyncStorage.setItem(ONBOARDING_KEY, 'true');
     console.log('Onboarding marked as completed');
   } catch (error) {
-    console.error('Error marking onboarding as completed:', error);
+    console.log('Error marking onboarding as completed:', error);
   }
 };
 
@@ -40,7 +40,7 @@ export const resetOnboardingStatus = async (): Promise<void> => {
     await AsyncStorage.removeItem(ONBOARDING_KEY);
     console.log('Onboarding status reset - will show onboarding on next launch');
   } catch (error) {
-    console.error('Error resetting onboarding status:', error);
+    console.log('Error resetting onboarding status:', error);
   }
 };
 
@@ -55,6 +55,6 @@ export const clearOnboardingData = async (): Promise<void> => {
     ]);
     console.log('All onboarding data cleared');
   } catch (error) {
-    console.error('Error clearing onboarding data:', error);
+    console.log('Error clearing onboarding data:', error);
   }
 };

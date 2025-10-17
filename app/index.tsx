@@ -16,7 +16,7 @@ export default function HomeScreen() {
   //       router.replace('/(onboarding)');
   //     }
   //   } catch (error) {
-  //     console.error('Error checking onboarding status:', error);
+  //     console.log('Error checking onboarding status:', error);
   //   }
   // };
 

@@ -27,7 +27,7 @@ export default function VerificationSuccess() {
   useEffect(() => {
     const createUserAccount = async () => {
       if (!email || !fullName || !password) {
-        console.error('Missing user data for account creation');
+        console.log('Missing user data for account creation');
         router.replace('/(auth)/signup');
         return;
       }
@@ -61,12 +61,12 @@ export default function VerificationSuccess() {
             await set(userRef, userData);
             console.log('✅ User data saved successfully to RTDB');
           } catch (e) { 
-            console.error('❌ Failed to save user in RTDB:', e); 
+            console.log('❌ Failed to save user in RTDB:', e); 
           }
         }
         // No navigation here; listener in _layout will handle stack change
       } catch (error) {
-        console.error('Error creating user account:', error);
+        console.log('Error creating user account:', error);
       } finally {
         setIsCreatingUser(false);
       }

@@ -10,7 +10,7 @@ export function StorageManager() {
       try {
         await StorageCleanup.checkAndCleanup();
       } catch (error) {
-        console.error('StorageManager: Cleanup failed:', error);
+        console.log('StorageManager: Cleanup failed:', error);
       }
     };
 

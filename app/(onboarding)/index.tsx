@@ -22,7 +22,7 @@ export default function OnboardingScreen() {
         router.replace('/(auth)/sign-in');
         console.log('Navigation called');
       } catch (error) {
-        console.error('Error during navigation:', error);
+        console.log('Error during navigation:', error);
       }
     } else {
       setCurrentIndex(prev => prev + 1);
@@ -40,7 +40,7 @@ export default function OnboardingScreen() {
       router.replace('/(auth)/sign-in');
       console.log('Navigation called');
     } catch (error) {
-      console.error('Error during navigation:', error);
+      console.log('Error during navigation:', error);
     }
   };
 

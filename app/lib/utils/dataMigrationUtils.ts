@@ -63,7 +63,7 @@ export const migrateProfileImages = async (): Promise<void> => {
             
             console.log(`✅ Migrated profile image for user: ${userId}`);
           } catch (error) {
-            console.error(`❌ Failed to migrate profile image for user ${userId}:`, error);
+            console.log(`❌ Failed to migrate profile image for user ${userId}:`, error);
           }
         })();
         
@@ -74,7 +74,7 @@ export const migrateProfileImages = async (): Promise<void> => {
     await Promise.all(migrationPromises);
     console.log('Profile image migration completed');
   } catch (error) {
-    console.error('Error during profile image migration:', error);
+    console.log('Error during profile image migration:', error);
   }
 };
 
@@ -162,7 +162,7 @@ export const migrateListingImages = async (): Promise<void> => {
             
             console.log(`✅ Migrated images for listing: ${listingId}`);
           } catch (error) {
-            console.error(`❌ Failed to migrate images for listing ${listingId}:`, error);
+            console.log(`❌ Failed to migrate images for listing ${listingId}:`, error);
           }
         })();
         
@@ -173,7 +173,7 @@ export const migrateListingImages = async (): Promise<void> => {
     await Promise.all(migrationPromises);
     console.log('Listing image migration completed');
   } catch (error) {
-    console.error('Error during listing image migration:', error);
+    console.log('Error during listing image migration:', error);
   }
 };
 
@@ -188,6 +188,6 @@ export const runAllMigrations = async (): Promise<void> => {
     await migrateListingImages();
     console.log('✅ All migrations completed successfully!');
   } catch (error) {
-    console.error('❌ Migration failed:', error);
+    console.log('❌ Migration failed:', error);
   }
 };

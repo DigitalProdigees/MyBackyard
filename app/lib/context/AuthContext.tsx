@@ -78,7 +78,7 @@ export function AuthProvider({ children }: AuthProviderProps): React.ReactElemen
         console.log('No stored auth data found');
       }
     } catch (error) {
-      console.error('Auth state check error:', error);
+      console.log('Auth state check error:', error);
       await clearAllAuthData();
     } finally {
       setIsLoading(false);
@@ -95,7 +95,7 @@ export function AuthProvider({ children }: AuthProviderProps): React.ReactElemen
         await chatService.setUserOffline();
         console.log('User set to offline before clearing auth data');
       } catch (chatError) {
-        console.error('Error setting user offline:', chatError);
+        console.log('Error setting user offline:', chatError);
       }
 
       // Get all AsyncStorage keys and remove any auth-related ones
@@ -141,7 +141,7 @@ export function AuthProvider({ children }: AuthProviderProps): React.ReactElemen
       setUser(null);
       console.log('All auth and session data cleared successfully');
     } catch (error) {
-      console.error('Error clearing auth data:', error);
+      console.log('Error clearing auth data:', error);
       // Fallback: just clear the known keys
       await Promise.all([
         AsyncStorage.removeItem(AUTH_TOKEN_KEY),
@@ -205,7 +205,7 @@ export function AuthProvider({ children }: AuthProviderProps): React.ReactElemen
 
       return response;
     } catch (error) {
-      console.error('Signin error:', error);
+      console.log('Signin error:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error occurred',
@@ -248,7 +248,7 @@ export function AuthProvider({ children }: AuthProviderProps): React.ReactElemen
 
       return response;
     } catch (error) {
-      console.error('AuthContext: signup error:', error);
+      console.log('AuthContext: signup error:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error occurred',
@@ -274,7 +274,7 @@ export function AuthProvider({ children }: AuthProviderProps): React.ReactElemen
           await authService.signout(token);
           console.log('Mock service signout successful');
         } catch (error) {
-          console.error('Mock service signout error (continuing with local cleanup):', error);
+          console.log('Mock service signout error (continuing with local cleanup):', error);
         }
       }
 
@@ -288,7 +288,7 @@ export function AuthProvider({ children }: AuthProviderProps): React.ReactElemen
       }, 100);
 
     } catch (error) {
-      console.error('Signout error:', error);
+      console.log('Signout error:', error);
       // Ensure local data is cleared even if there's an error
       await clearAllAuthData();
       // Still navigate to login
@@ -325,7 +325,7 @@ export function AuthProvider({ children }: AuthProviderProps): React.ReactElemen
           await forceLogout();
         }
       } catch (error) {
-        console.error('Error refreshing user data:', error);
+        console.log('Error refreshing user data:', error);
         await forceLogout();
       }
     }
@@ -344,7 +344,7 @@ export function AuthProvider({ children }: AuthProviderProps): React.ReactElemen
       }
       return response.success;
     } catch (error) {
-      console.error('Session validity check error:', error);
+      console.log('Session validity check error:', error);
       await forceLogout();
       return false;
     }
@@ -385,7 +385,7 @@ export function useAuth(): AuthContextType {
 
   // Add debugging to ensure all functions are properly defined
   if (!context.signup) {
-    console.error('signup function is undefined in AuthContext');
+    console.log('signup function is undefined in AuthContext');
     console.log('Available context properties:', Object.keys(context));
   }
 

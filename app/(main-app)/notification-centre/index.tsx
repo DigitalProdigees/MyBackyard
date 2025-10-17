@@ -18,24 +18,24 @@ interface Notification {
 export default function NotificationCentre() {
 	const { user } = useAuth();
 	const notifications: Notification[] = [
-		{
-			id: '1',
-			message: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt.',
-			timestamp: '2h ago',
-			isRead: false
-		},
-		{
-			id: '2',
-			message: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt.',
-			timestamp: '2h ago',
-			isRead: false
-		},
-		{
-			id: '3',
-			message: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt.',
-			timestamp: '2h ago',
-			isRead: false
-		}
+		// {
+		// 	id: '1',
+		// 	message: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt.',
+		// 	timestamp: '2h ago',
+		// 	isRead: false
+		// },
+		// {
+		// 	id: '2',
+		// 	message: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt.',
+		// 	timestamp: '2h ago',
+		// 	isRead: false
+		// },
+		// {
+		// 	id: '3',
+		// 	message: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt.',
+		// 	timestamp: '2h ago',
+		// 	isRead: false
+		// }
 	];
 
 	const renderNotification = (notification: Notification) => (
@@ -72,7 +72,20 @@ export default function NotificationCentre() {
 				contentContainerStyle={styles.notificationsContent}
 				showsVerticalScrollIndicator={false}
 			>
-				{notifications.map(renderNotification)}
+				{notifications.length > 0 ? (
+					notifications.map(renderNotification)
+				) : (
+					<View style={styles.emptyStateContainer}>
+						<Image
+							source={require('../../../assets/icons/icBELL.png')}
+							style={styles.emptyStateIcon}
+						/>
+						<Text style={styles.emptyStateTitle}>No Notifications</Text>
+						<Text style={styles.emptyStateMessage}>
+							You're all caught up! We'll notify you when something new happens.
+						</Text>
+					</View>
+				)}
 			</ScrollView>
 		</View>
 	);
@@ -141,5 +154,33 @@ const styles = StyleSheet.create({
 	notificationTimestamp: {
 		color: 'white',
 		fontSize: 15,
+	},
+	emptyStateContainer: {
+		flex: 1,
+		justifyContent: 'center',
+		alignItems: 'center',
+		paddingVertical: 60,
+		paddingHorizontal: 40,
+	},
+	emptyStateIcon: {
+		width: 80,
+		height: 80,
+		resizeMode: 'contain',
+		opacity: 0.6,
+		marginBottom: 24,
+	},
+	emptyStateTitle: {
+		color: '#FFFFFF',
+		fontSize: 24,
+		fontWeight: 'bold',
+		marginBottom: 12,
+		textAlign: 'center',
+	},
+	emptyStateMessage: {
+		color: '#FFFFFF',
+		fontSize: 16,
+		lineHeight: 22,
+		textAlign: 'center',
+		opacity: 0.8,
 	},
 });

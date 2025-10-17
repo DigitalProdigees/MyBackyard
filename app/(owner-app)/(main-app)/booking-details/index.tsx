@@ -34,7 +34,7 @@ export default function BookingDetails() {
             console.log('❌ No fullName found in Firebase for user:', auth.currentUser.uid);
           }
         } catch (error) {
-          console.error('Error fetching user name from Firebase:', error);
+          console.log('Error fetching user name from Firebase:', error);
         }
       }
     };

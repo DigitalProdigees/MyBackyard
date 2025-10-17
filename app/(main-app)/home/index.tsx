@@ -110,14 +110,14 @@ export default function RenterHome() {
             await cleanupLegacyChatData();
             console.log('Main app: Direct cleanup completed');
           } catch (cleanupError) {
-            console.error('Main app: Direct cleanup failed:', cleanupError);
+            console.log('Main app: Direct cleanup failed:', cleanupError);
           }
         }
         // Set renter as online with real Firebase UID
         await chatService.setUserOnline();
         console.log('Main app: Set renter as online');
       } catch (error: any) {
-        console.error('Main app: Error setting renter online:', error);
+        console.log('Main app: Error setting renter online:', error);
         // If there's a storage error, try emergency cleanup
         if (error?.message && error.message.includes('SQLITE_FULL')) {
           console.log('Main app: SQLite full error detected, performing emergency cleanup');
@@ -132,11 +132,11 @@ export default function RenterHome() {
                 await emergencyCleanup();
                 console.log('Main app: Direct emergency cleanup completed');
               } catch (directCleanupError) {
-                console.error('Main app: Direct emergency cleanup failed:', directCleanupError);
+                console.log('Main app: Direct emergency cleanup failed:', directCleanupError);
               }
             }
           } catch (cleanupError) {
-            console.error('Main app: Emergency cleanup failed:', cleanupError);
+            console.log('Main app: Emergency cleanup failed:', cleanupError);
           }
         }
       }
@@ -218,10 +218,7 @@ export default function RenterHome() {
     setShowLocationDropdown(false);
   };
 
-  // Handle profile navigation
-  const handleProfilePress = () => {
-    router.push('/(main-app)/notifications');
-  };
+  // Removed handleProfilePress - Header component now handles menu drawer
 
   // Get user's first name for greeting
   const getFirstName = () => {
@@ -257,7 +254,6 @@ export default function RenterHome() {
       {/* Header Component */}
       <Header
         leftComponent="menu"
-        onMenuPress={handleProfilePress}
         refreshTrigger={headerRefreshKey}
         customCenterComponent={
           <LocationButton

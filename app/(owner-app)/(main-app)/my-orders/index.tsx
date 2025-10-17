@@ -119,7 +119,7 @@ export default function MyOrders() {
           setOrders([]);
         }
       } catch (error) {
-        console.error('Error processing orders data:', error);
+        console.log('Error processing orders data:', error);
         setOrders([]);
       } finally {
         setLoading(false);
@@ -191,7 +191,7 @@ export default function MyOrders() {
             setOrders(ordersArray);
           }
         }).catch((error) => {
-          console.error('Error refreshing orders:', error);
+          console.log('Error refreshing orders:', error);
         });
       }
     }, [])

@@ -82,7 +82,7 @@ export default function RenterHome() {
             await cleanupLegacyChatData();
             console.log('Owner app: Direct cleanup completed');
           } catch (cleanupError) {
-            console.error('Owner app: Direct cleanup failed:', cleanupError);
+            console.log('Owner app: Direct cleanup failed:', cleanupError);
           }
         }
         
@@ -95,7 +95,7 @@ export default function RenterHome() {
         await chatService.setUserOnline();
         console.log('Owner app: Set owner as online with ID:', currentUserId);
       } catch (error: any) {
-        console.error('Owner app: Error setting owner online:', error);
+        console.log('Owner app: Error setting owner online:', error);
         // If there's a storage error, try emergency cleanup
         if (error.message && error.message.includes('SQLITE_FULL')) {
           console.log('Owner app: SQLite full error detected, performing emergency cleanup');
@@ -111,11 +111,11 @@ export default function RenterHome() {
                 await emergencyCleanup();
                 console.log('Owner app: Direct emergency cleanup completed');
               } catch (directCleanupError) {
-                console.error('Owner app: Direct emergency cleanup failed:', directCleanupError);
+                console.log('Owner app: Direct emergency cleanup failed:', directCleanupError);
               }
             }
           } catch (cleanupError) {
-            console.error('Owner app: Emergency cleanup failed:', cleanupError);
+            console.log('Owner app: Emergency cleanup failed:', cleanupError);
           }
         }
       }
@@ -221,9 +221,7 @@ export default function RenterHome() {
   // Note: Header component has real-time listeners for unread count updates
   // No need for periodic refresh - the Header will update automatically when new messages arrive
 
-  const handleProfilePress = () => {
-    router.push('/(main-app)/notifications');
-  };
+  // Removed handleProfilePress - Header component now handles menu drawer
 
   const getFirstName = () => {
     const fullName = displayName || (user as any)?.name || '';
@@ -240,7 +238,6 @@ export default function RenterHome() {
       {/* Header */}
       <Header
         leftComponent="menu"
-        onMenuPress={handleProfilePress}
         refreshTrigger={headerRefreshKey}
         customCenterComponent={
           <LocationButton

@@ -1,25 +1,135 @@
-import { Stack } from 'expo-router';
+import { Drawer } from 'expo-router/drawer';
+import { GradientBackground } from '../components/GradientBackground';
+import CustomDrawerContent from '../components/menu/CustomDrawerContent';
 
 export default function RenterLayout() {
-
   return (
-    <Stack screenOptions={{
-      headerShown: false,
-      contentStyle: { backgroundColor: 'transparent' }
-    }}>
-      <Stack.Screen name="home" options={{ headerShown: false }} />
-      <Stack.Screen name="backyard-details" options={{ headerShown: false }} />
-      <Stack.Screen name="booking-details" options={{ headerShown: false }} />
-      <Stack.Screen name="notifications" options={{ headerShown: false }} />
-      <Stack.Screen name="payment-processing" options={{ headerShown: false }} />
-      <Stack.Screen name="my-bookings" options={{ headerShown: false }} />
-      <Stack.Screen name="contact-us" options={{ headerShown: false }} />
-      <Stack.Screen name="messaging" options={{ headerShown: false }} />
-      <Stack.Screen name="profile" options={{ headerShown: false }} />
-      <Stack.Screen name="change-pass" options={{ headerShown: false }} />
-      <Stack.Screen name="reset-pass" options={{ headerShown: false }} />
-      <Stack.Screen name="terms-conditions" options={{ headerShown: false }} />
-      <Stack.Screen name="privacy-policy" options={{ headerShown: false }} />
-    </Stack>
+    <>
+      <GradientBackground />
+      <Drawer
+        drawerContent={(props) => <CustomDrawerContent {...props} />}
+        screenOptions={{
+          headerShown: false,
+          drawerStyle: {
+            backgroundColor: 'transparent',
+            width: '80%',
+          },
+          overlayColor: 'rgba(0, 0, 0, 0.5)',
+          drawerType: 'slide',
+        }}
+      >
+        <Drawer.Screen
+          name="home/index"
+          options={{
+            drawerLabel: 'Home',
+            title: 'Home',
+          }}
+        />
+        <Drawer.Screen
+          name="my-bookings/index"
+          options={{
+            drawerLabel: 'My Bookings',
+            title: 'My Bookings',
+          }}
+        />
+        <Drawer.Screen
+          name="messaging/index"
+          options={{
+            drawerLabel: 'Messaging',
+            title: 'Messaging',
+          }}
+        />
+        <Drawer.Screen
+          name="chat/index"
+          options={{
+            drawerItemStyle: { display: 'none' },
+          }}
+        />
+        <Drawer.Screen
+          name="backyard-details/index"
+          options={{
+            drawerItemStyle: { display: 'none' },
+          }}
+        />
+        <Drawer.Screen
+          name="booking-details/index"
+          options={{
+            drawerItemStyle: { display: 'none' },
+          }}
+        />
+        <Drawer.Screen
+          name="profile/index"
+          options={{
+            drawerItemStyle: { display: 'none' },
+          }}
+        />
+        <Drawer.Screen
+          name="change-pass/index"
+          options={{
+            drawerItemStyle: { display: 'none' },
+          }}
+        />
+        <Drawer.Screen
+          name="reset-pass/index"
+          options={{
+            drawerItemStyle: { display: 'none' },
+          }}
+        />
+        <Drawer.Screen
+          name="contact-us/index"
+          options={{
+            drawerItemStyle: { display: 'none' },
+          }}
+        />
+        <Drawer.Screen
+          name="terms-conditions/index"
+          options={{
+            drawerItemStyle: { display: 'none' },
+          }}
+        />
+        <Drawer.Screen
+          name="privacy-policy/index"
+          options={{
+            drawerItemStyle: { display: 'none' },
+          }}
+        />
+        <Drawer.Screen
+          name="payment-processing/index"
+          options={{
+            drawerItemStyle: { display: 'none' },
+          }}
+        />
+        <Drawer.Screen
+          name="payment-success/index"
+          options={{
+            drawerItemStyle: { display: 'none' },
+          }}
+        />
+        <Drawer.Screen
+          name="payment-cancel/index"
+          options={{
+            drawerItemStyle: { display: 'none' },
+          }}
+        />
+        <Drawer.Screen
+          name="notification-centre/index"
+          options={{
+            drawerItemStyle: { display: 'none' },
+          }}
+        />
+        <Drawer.Screen
+          name="reset-pss-change/index"
+          options={{
+            drawerItemStyle: { display: 'none' },
+          }}
+        />
+        <Drawer.Screen
+          name="admin-payments/index"
+          options={{
+            drawerItemStyle: { display: 'none' },
+          }}
+        />
+      </Drawer>
+    </>
   );
 } 

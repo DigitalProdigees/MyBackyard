@@ -20,7 +20,7 @@ export function DataMigrationButton() {
               await runAllMigrations();
               Alert.alert('Success', 'Data migration completed successfully!');
             } catch (error) {
-              console.error('Migration error:', error);
+              console.log('Migration error:', error);
               Alert.alert('Error', 'Migration failed. Check console for details.');
             } finally {
               setIsMigrating(false);

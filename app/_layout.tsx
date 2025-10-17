@@ -115,7 +115,7 @@ function RootLayoutContent() {
   // Perform storage cleanup on app start
   useEffect(() => {
     StorageCleanup.checkAndCleanup().catch(error => {
-      console.error('Storage cleanup failed:', error);
+      console.log('Storage cleanup failed:', error);
     });
   }, []);
 

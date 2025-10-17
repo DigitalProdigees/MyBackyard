@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, Image, Alert, ActivityIndicator, Linking } from 'react-native';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { View, Text, Image, Alert, ActivityIndicator, Linking, TouchableOpacity } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { GradientBackground } from '../../components/GradientBackground';
 import { Icons } from '../../../constants/icons';
@@ -24,12 +24,46 @@ export default function PaymentProcessing() {
   const [errorMessage, setErrorMessage] = useState('');
   const [isReturningFromStripe, setIsReturningFromStripe] = useState(false);
   const [processedSessionId, setProcessedSessionId] = useState<string | null>(null);
-  const [hasAttemptedCheckout, setHasAttemptedCheckout] = useState(false);
+  const [isStuck, setIsStuck] = useState(false);
+  
+  // Better state management
+  const [paymentState, setPaymentState] = useState<'idle' | 'creating' | 'processing' | 'completed' | 'cancelled' | 'error'>('idle');
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  
+  // Refs for preventing race conditions
+  const isProcessingRef = useRef(false);
+  const hasInitializedRef = useRef(false);
+  const authUnsubscribeRef = useRef<(() => void) | null>(null);
+  
   const params = useLocalSearchParams();
 
-  // Immediate check on mount - redirect if params are missing
+  // Initialize component and validate params
   useEffect(() => {
-    const checkParamsAndInit = async () => {
+    const initializeComponent = async () => {
+      if (hasInitializedRef.current) return;
+      hasInitializedRef.current = true;
+
+      console.log('Payment Processing: Initializing component');
+
+      // Clear any existing payment flow flags on mount to start fresh
+      try {
+        const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+        await AsyncStorage.removeItem('active_payment_flow');
+        await AsyncStorage.removeItem('payment_flow_timestamp');
+        await AsyncStorage.removeItem('current_session_id');
+        console.log('Payment Processing: Cleared payment flow flags on mount');
+      } catch (error) {
+        console.log('Error clearing payment flow flags on mount:', error);
+      }
+
+      // Reset all payment state flags on mount
+      isProcessingRef.current = false;
+      setPaymentState('idle');
+      setIsProcessing(false);
+      setIsStuck(false);
+      setCurrentSessionId(null);
+      console.log('Payment Processing: Reset all payment state flags on mount');
+
       const listingId = params.listingId as string;
       const total = params.total as string;
       
@@ -39,18 +73,10 @@ export default function PaymentProcessing() {
         return;
       }
 
-      // Set a flag indicating we're in an active payment flow
-      try {
-        const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
-        await AsyncStorage.setItem('active_payment_flow', 'true');
-        await AsyncStorage.setItem('payment_flow_timestamp', Date.now().toString());
-        console.log('Payment Processing: Set active payment flow flag');
-      } catch (error) {
-        console.error('Error setting payment flow flag:', error);
-      }
+      console.log('Payment Processing: Params validated, ready for payment');
     };
 
-    checkParamsAndInit();
+    initializeComponent();
 
     // Cleanup: remove the flag when component unmounts
     return () => {
@@ -59,9 +85,16 @@ export default function PaymentProcessing() {
           const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
           await AsyncStorage.removeItem('active_payment_flow');
           await AsyncStorage.removeItem('payment_flow_timestamp');
-          console.log('Payment Processing: Cleared active payment flow flag');
+          await AsyncStorage.removeItem('current_session_id');
+          console.log('Payment Processing: Cleared active payment flow flag on unmount');
         } catch (error) {
-          console.error('Error clearing payment flow flag:', error);
+          console.log('Error clearing payment flow flag:', error);
+        }
+        
+        // Cleanup auth listener
+        if (authUnsubscribeRef.current) {
+          authUnsubscribeRef.current();
+          authUnsubscribeRef.current = null;
         }
       };
       cleanup();
@@ -69,15 +102,35 @@ export default function PaymentProcessing() {
   }, []);
 
   // Create Stripe Checkout Session
-  const createCheckoutSession = async () => {
+  const createCheckoutSession = useCallback(async () => {
+    // Prevent multiple simultaneous checkout attempts
+    if (isProcessingRef.current || paymentState !== 'idle') {
+      console.log('Payment Processing: Checkout already in progress or not in idle state, skipping');
+      return;
+    }
+
     try {
+      console.log('Payment Processing: Starting createCheckoutSession');
+      isProcessingRef.current = true;
+      setPaymentState('creating');
       setIsProcessing(true);
       setPaymentError('');
+
+      // Set payment flow flag when we actually start checkout
+      try {
+        const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+        await AsyncStorage.setItem('active_payment_flow', 'true');
+        await AsyncStorage.setItem('payment_flow_timestamp', Date.now().toString());
+        console.log('Payment Processing: Set active payment flow flag');
+      } catch (error) {
+        console.log('Error setting payment flow flag:', error);
+      }
 
       // Check if user is authenticated
       const user = auth.currentUser;
       if (!user) {
         console.log('User not authenticated, redirecting to login');
+        setPaymentState('error');
         router.push('/(auth)/sign-in');
         return;
       }
@@ -111,10 +164,10 @@ export default function PaymentProcessing() {
 
       // Initialize Firebase Functions
       const functions = getFunctions();
-      const createCheckoutSession = httpsCallable(functions, 'createCheckoutSession');
+      const createCheckoutSessionFunction = httpsCallable(functions, 'createCheckoutSession');
 
       // Create checkout session
-      const checkoutResult = await createCheckoutSession({
+      const checkoutData = {
         amount: parseFloat(total),
         currency: 'usd',
         listingId,
@@ -146,74 +199,149 @@ export default function PaymentProcessing() {
             mainImage: listing.mainImage || listing.images?.[0] || ''
           }
         }
-      });
+      };
+      
+      console.log('Payment Processing: Calling createCheckoutSession with data:', checkoutData);
+      const checkoutResult = await createCheckoutSessionFunction(checkoutData);
+      console.log('Payment Processing: Checkout result:', checkoutResult);
 
-      const { checkoutUrl } = checkoutResult.data as any;
+      const { checkoutUrl, sessionId } = checkoutResult.data as any;
       
       if (checkoutUrl) {
         setCheckoutUrl(checkoutUrl);
+        
+        // Handle sessionId if available (for newer function versions)
+        if (sessionId) {
+          setCurrentSessionId(sessionId);
+          
+          // Store session ID for tracking
+          try {
+            const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+            await AsyncStorage.setItem('current_session_id', sessionId);
+          } catch (error) {
+            console.log('Error storing session ID:', error);
+          }
+        } else {
+          console.log('Session ID not returned from function, will extract from success URL');
+        }
+        
+        setPaymentState('processing');
+        
         // Open Stripe Checkout in in-app browser
         const result = await WebBrowser.openBrowserAsync(checkoutUrl, {
           dismissButtonStyle: 'cancel',
           presentationStyle: WebBrowser.WebBrowserPresentationStyle.FORM_SHEET,
         });
         
+        console.log('WebBrowser result:', result);
+        
         // Handle the result when user returns
-        if (result.type === 'dismiss') {
+        if (result.type === 'dismiss' || result.type === 'cancel') {
           // User cancelled or closed the browser
-          router.back();
+          console.log('Payment cancelled by user');
+          await handlePaymentCancellation();
         }
       } else {
         throw new Error('Failed to create checkout session');
       }
     } catch (error) {
-      console.error('Checkout error:', error);
-      setPaymentError(error instanceof Error ? error.message : 'Failed to create checkout session');
-      Alert.alert('Checkout Error', error instanceof Error ? error.message : 'Failed to create checkout session');
+      console.log('Checkout error:', error);
+      console.log('Error type:', typeof error);
+      console.log('Error message:', error instanceof Error ? error.message : 'Unknown error');
+      console.log('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+      
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create checkout session';
+      setPaymentError(errorMessage);
+      setPaymentState('error');
+      
+      // Clear payment flow flags on error
+      await clearPaymentFlags();
+      
+      Alert.alert('Checkout Error', errorMessage);
     } finally {
+      isProcessingRef.current = false;
       setIsProcessing(false);
     }
-  };
+  }, [params, paymentState]);
 
+  // Handle payment cancellation
+  const handlePaymentCancellation = useCallback(async () => {
+    console.log('Payment Processing: Handling payment cancellation');
+    setPaymentState('cancelled');
+    await clearPaymentFlags();
+    isProcessingRef.current = false;
+    setIsProcessing(false);
+    setCurrentSessionId(null);
+    router.replace('/(main-app)/home');
+  }, []);
+
+  // Clear payment flags
+  const clearPaymentFlags = useCallback(async () => {
+    try {
+      const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+      await AsyncStorage.removeItem('active_payment_flow');
+      await AsyncStorage.removeItem('payment_flow_timestamp');
+      await AsyncStorage.removeItem('current_session_id');
+      console.log('Payment Processing: Cleared payment flow flags');
+    } catch (error) {
+      console.log('Error clearing payment flow flags:', error);
+    }
+  }, []);
+
+  // Handle authentication and start payment process
   useEffect(() => {
-    // Listen for authentication state changes
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        // Prevent multiple checkout attempts
-        if (hasAttemptedCheckout) {
-          console.log('Already attempted checkout, skipping');
-          return;
-        }
+    const startPaymentProcess = async () => {
+      // Check if we have required params
+      const listingId = params.listingId as string;
+      const total = params.total as string;
+      
+      console.log('Payment Processing: Checking params - listingId:', listingId, 'total:', total);
+      
+      if (!listingId || !total) {
+        console.log('Missing required payment params, redirecting to home');
+        router.replace('/(main-app)/home');
+        return;
+      }
 
-        // Check if we have required params before creating checkout session
-        const listingId = params.listingId as string;
-        const total = params.total as string;
-        
-        if (!listingId || !total) {
-          console.log('Missing required payment params, redirecting to home');
-          router.replace('/(main-app)/home');
-          return;
-        }
-        
-        // Mark that we've attempted checkout to prevent duplicate attempts
-        setHasAttemptedCheckout(true);
-        console.log('User is authenticated, creating checkout session');
-        await createCheckoutSession();
-      } else {
+      // Check if user is authenticated
+      const user = auth.currentUser;
+      if (!user) {
         console.log('User not authenticated, redirecting to login');
         router.replace('/(auth)/sign-in');
+        return;
       }
-    });
 
-    // Cleanup listener on unmount
-    return () => unsubscribe();
-  }, [hasAttemptedCheckout]);
+      // Only start payment if we're in idle state and haven't started yet
+      if (paymentState === 'idle' && !isProcessingRef.current) {
+        console.log('User is authenticated, starting payment process');
+        await createCheckoutSession();
+      } else {
+        console.log('Payment already in progress or not in idle state, skipping');
+      }
+    };
+
+    // Small delay to ensure component is fully mounted
+    const timer = setTimeout(() => {
+      startPaymentProcess();
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, [params, paymentState, createCheckoutSession]);
+
 
   // Listen for deep links (when user returns from Stripe)
   useEffect(() => {
-    const handleDeepLink = (url: string) => {
+    const handleDeepLink = async (url: string) => {
       console.log('Deep link received:', url);
       setIsReturningFromStripe(true);
+      
+      // Dismiss the WebBrowser if it's still open
+      try {
+        await WebBrowser.dismissBrowser();
+        console.log('WebBrowser dismissed');
+      } catch (error) {
+        console.log('Error dismissing WebBrowser (may already be closed):', error);
+      }
       
       if (url.includes('payment-success')) {
         // Extract session_id from URL
@@ -229,11 +357,12 @@ export default function PaymentProcessing() {
           
           console.log('Payment successful, verifying booking...');
           setProcessedSessionId(sessionId);
-          verifyPaymentAndCreateBooking(sessionId);
+          setPaymentState('completed');
+          await verifyPaymentAndCreateBooking(sessionId);
         }
       } else if (url.includes('payment-cancel')) {
-        console.log('Payment cancelled');
-        router.back();
+        console.log('Payment cancelled via deep link');
+        await handlePaymentCancellation();
       }
     };
 
@@ -252,9 +381,9 @@ export default function PaymentProcessing() {
     return () => {
       subscription?.remove();
     };
-  }, []);
+  }, [processedSessionId, handlePaymentCancellation]);
 
-  const verifyPaymentAndCreateBooking = async (sessionId: string) => {
+  const verifyPaymentAndCreateBooking = useCallback(async (sessionId: string) => {
     try {
       console.log('Verifying payment for session:', sessionId);
       setIsProcessing(true);
@@ -271,6 +400,10 @@ export default function PaymentProcessing() {
         if (data.isExisting) {
           console.log('Booking already existed, showing success anyway');
         }
+        
+        // Clear the payment flow flag
+        await clearPaymentFlags();
+        
         setShowSuccessModal(true);
         // Store booking ID for navigation after modal dismissal
         setBookingId(data.bookingId);
@@ -293,28 +426,32 @@ export default function PaymentProcessing() {
         
         setErrorMessage(userFriendlyError);
         setShowErrorModal(true);
+        setPaymentState('error');
         
         // Auto-close error modal after 4 seconds and go back
-        setTimeout(() => {
+        setTimeout(async () => {
           setShowErrorModal(false);
-          router.back();
+          await clearPaymentFlags();
+          router.replace('/(main-app)/home');
         }, 4000);
       }
     } catch (error) {
-      console.error('Payment verification error:', error);
+      console.log('Payment verification error:', error);
       const errorMsg = 'Failed to verify payment. Please try again.';
       setErrorMessage(errorMsg);
       setShowErrorModal(true);
+      setPaymentState('error');
       
       // Auto-close error modal after 4 seconds and go back
-      setTimeout(() => {
+      setTimeout(async () => {
         setShowErrorModal(false);
-        router.back();
+        await clearPaymentFlags();
+        router.replace('/(main-app)/home');
       }, 4000);
     } finally {
       setIsProcessing(false);
     }
-  };
+  }, [clearPaymentFlags]);
 
   // Function to convert Stripe error codes to user-friendly messages
   const getErrorMessage = (error: string) => {
@@ -354,16 +491,39 @@ export default function PaymentProcessing() {
             )}
           </View>
           <Text style={styles.title}>
-            {isProcessing ? 'Opening Stripe Checkout...' : 'Redirecting to Payment'}
+            {paymentState === 'cancelled' ? 'Payment Cancelled' :
+             paymentState === 'error' ? 'Payment Error' :
+             paymentState === 'creating' ? 'Creating Payment Session...' :
+             paymentState === 'processing' ? 'Opening Stripe Checkout...' : 
+             'Redirecting to Payment'}
           </Text>
           <Text style={styles.subtitle}>
-            {isProcessing 
-              ? 'Please wait while we redirect you to Stripe' 
-              : 'You will be redirected to Stripe to complete your payment securely'
-            }
+            {paymentState === 'cancelled' ? 'You cancelled the payment. You can try again.' :
+             paymentState === 'error' ? 'Something went wrong. Please try again.' :
+             paymentState === 'creating' ? 'Please wait while we create your payment session' :
+             paymentState === 'processing' ? 'Please wait while we redirect you to Stripe' : 
+             'You will be redirected to Stripe to complete your payment securely'}
           </Text>
           {paymentError && (
             <Text style={styles.errorText}>{paymentError}</Text>
+          )}
+          {(paymentState === 'error' || paymentState === 'cancelled') && (
+            <TouchableOpacity 
+              style={styles.retryButton}
+              onPress={() => {
+                isProcessingRef.current = false;
+                setPaymentState('idle');
+                setIsProcessing(false);
+                setPaymentError('');
+                setCurrentSessionId(null);
+                // Retry payment
+                setTimeout(() => {
+                  createCheckoutSession();
+                }, 100);
+              }}
+            >
+              <Text style={styles.retryButtonText}>Retry Payment</Text>
+            </TouchableOpacity>
           )}
         </View>
       )}
@@ -436,6 +596,19 @@ const styles = StyleSheet.create({
     color: '#FF6B6B',
     textAlign: 'center',
     marginTop: 10,
+  },
+  retryButton: {
+    backgroundColor: '#A6E66E',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginTop: 16,
+  },
+  retryButtonText: {
+    color: '#1A1A2E',
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
   },
   // Modal Styles
   modalOverlay: {

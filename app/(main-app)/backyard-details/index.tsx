@@ -55,7 +55,7 @@ export default function BackyardDetails() {
                   avatar = { uri: profileImageData.uri };
                 }
               } catch (error) {
-                console.error('Error fetching user data:', error);
+                console.log('Error fetching user data:', error);
                 // Keep the fallback userName and avatar
               }
             }
@@ -80,7 +80,7 @@ export default function BackyardDetails() {
           setReviews([]);
         }
       } catch (error) {
-        console.error('Error fetching reviews:', error);
+        console.log('Error fetching reviews:', error);
         setReviews([]);
       }
     };
@@ -127,7 +127,7 @@ export default function BackyardDetails() {
                     await update(reviewRef, { userName: fullName });
                     console.log('✅ Successfully updated review userName in Firebase');
                   } catch (updateError) {
-                    console.error('❌ Error updating review userName:', updateError);
+                    console.log('❌ Error updating review userName:', updateError);
                   }
                 }
               } else {
@@ -153,7 +153,7 @@ export default function BackyardDetails() {
                 console.log('❌ No profile image found for userId:', review.userId);
               }
             } catch (error) {
-              console.error('❌ Error fetching user data:', error);
+              console.log('❌ Error fetching user data:', error);
               // Keep the fallback userName and avatar
             }
           } else {

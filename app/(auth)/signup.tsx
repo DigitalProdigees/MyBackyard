@@ -27,7 +27,7 @@ const { width, height } = Dimensions.get('window');
 
 export default function SignUp() {
   const [fullName, setFullName] = useState(__DEV__ ? 'Tamoor' : '');
-  const [email, setEmail] = useState(__DEV__ ? 'tamoor@gmail.com' : '');
+  const [email, setEmail] = useState(__DEV__ ? 'tam@gmail.com' : '');
   const [password, setPassword] = useState(__DEV__ ? 'Profe$$ional78' : '');
   const [confirmPassword, setConfirmPassword] = useState(__DEV__ ? 'Profe$$ional78' : '');
   const [termsAccepted, setTermsAccepted] = useState(false);

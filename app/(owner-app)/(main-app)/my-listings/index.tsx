@@ -468,65 +468,161 @@ export default function MyListingsScreen() {
 	};
 
 	const pickCoverImage = async () => {
-		const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-		if (status !== 'granted') return;
-		
-		// Use very low quality for instant upload (KB size)
-		const result = await ImagePicker.launchImageLibraryAsync({ 
-			mediaTypes: ImagePicker.MediaTypeOptions.Images, 
-			quality: 0.1, // Very low quality for instant upload
-			base64: false // No need for base64 since we're using Storage
-		});
-		
-		if (!result.canceled && result.assets && result.assets.length > 0) {
-			const asset = result.assets[0];
+		const requestPermission = async () => {
+			// First check current permission status
+			const { status: currentStatus } = await ImagePicker.getMediaLibraryPermissionsAsync();
 			
-			// Log image size after compression
-			if (asset.fileSize) {
-				const sizeInKB = (asset.fileSize / 1024).toFixed(2);
-				const sizeInMB = (asset.fileSize / (1024 * 1024)).toFixed(2);
-				console.log(`📸 Cover image selected: ${asset.uri}`);
-				console.log(`📏 Image size after compression: ${sizeInKB} KB (${sizeInMB} MB)`);
-				console.log(`⚡ Quality setting: 10% (instant upload)`);
-			} else {
-				console.log(`📸 Cover image selected: ${asset.uri} (compressed for instant upload)`);
+			if (currentStatus === 'granted') {
+				// Permission already granted, proceed with image selection
+				selectCoverImage();
+				return;
 			}
 			
-			setCoverImage(asset.uri);
-		}
+			// Request permission
+			const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+			
+			if (status === 'granted') {
+				// Permission granted, proceed with image selection
+				selectCoverImage();
+			} else if (status === 'denied') {
+				// Permission denied, show alert with option to try again or go to settings
+				Alert.alert(
+					'Permission Required',
+					'We need access to your photo library to select a cover image. Please grant permission to continue.',
+					[
+						{
+							text: 'Cancel',
+							style: 'cancel',
+						},
+						{
+							text: 'Try Again',
+							onPress: requestPermission,
+						},
+						{
+							text: 'Open Settings',
+							onPress: () => {
+								// On iOS, this will open the app settings
+								Alert.alert(
+									'Open Settings',
+									'Please go to Settings > Privacy & Security > Photos > MyBackyard and enable access.',
+									[{ text: 'OK' }]
+								);
+							},
+						},
+					]
+				);
+			}
+		};
+		
+		const selectCoverImage = async () => {
+			// Use very low quality for instant upload (KB size)
+			const result = await ImagePicker.launchImageLibraryAsync({ 
+				mediaTypes: ImagePicker.MediaTypeOptions.Images, 
+				quality: 0.1, // Very low quality for instant upload
+				base64: false // No need for base64 since we're using Storage
+			});
+			
+			if (!result.canceled && result.assets && result.assets.length > 0) {
+				const asset = result.assets[0];
+				
+				// Log image size after compression
+				if (asset.fileSize) {
+					const sizeInKB = (asset.fileSize / 1024).toFixed(2);
+					const sizeInMB = (asset.fileSize / (1024 * 1024)).toFixed(2);
+					console.log(`📸 Cover image selected: ${asset.uri}`);
+					console.log(`📏 Image size after compression: ${sizeInKB} KB (${sizeInMB} MB)`);
+					console.log(`⚡ Quality setting: 10% (instant upload)`);
+				} else {
+					console.log(`📸 Cover image selected: ${asset.uri} (compressed for instant upload)`);
+				}
+				
+				setCoverImage(asset.uri);
+			}
+		};
+		
+		// Start the permission request flow
+		requestPermission();
 	};
 
 	const pickSubImage = async (slot: number) => {
-		const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-		if (status !== 'granted') return;
-		
-		// Use very low quality for instant upload (KB size)
-		const result = await ImagePicker.launchImageLibraryAsync({ 
-			mediaTypes: ImagePicker.MediaTypeOptions.Images, 
-			quality: 0.1, // Very low quality for instant upload
-			base64: false // No need for base64 since we're using Storage
-		});
-		
-		if (!result.canceled && result.assets && result.assets.length > 0) {
-			const asset = result.assets[0];
+		const requestPermission = async () => {
+			// First check current permission status
+			const { status: currentStatus } = await ImagePicker.getMediaLibraryPermissionsAsync();
 			
-			// Log image size after compression
-			if (asset.fileSize) {
-				const sizeInKB = (asset.fileSize / 1024).toFixed(2);
-				const sizeInMB = (asset.fileSize / (1024 * 1024)).toFixed(2);
-				console.log(`📸 Sub image ${slot} selected: ${asset.uri}`);
-				console.log(`📏 Image size after compression: ${sizeInKB} KB (${sizeInMB} MB)`);
-				console.log(`⚡ Quality setting: 10% (instant upload)`);
-			} else {
-				console.log(`📸 Sub image ${slot} selected: ${asset.uri} (compressed for instant upload)`);
+			if (currentStatus === 'granted') {
+				// Permission already granted, proceed with image selection
+				selectSubImage();
+				return;
 			}
 			
-			setSubImages(prev => {
-				const next = [...prev];
-				next[slot] = asset.uri;
-				return next;
+			// Request permission
+			const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+			
+			if (status === 'granted') {
+				// Permission granted, proceed with image selection
+				selectSubImage();
+			} else if (status === 'denied') {
+				// Permission denied, show alert with option to try again or go to settings
+				Alert.alert(
+					'Permission Required',
+					'We need access to your photo library to select an image. Please grant permission to continue.',
+					[
+						{
+							text: 'Cancel',
+							style: 'cancel',
+						},
+						{
+							text: 'Try Again',
+							onPress: requestPermission,
+						},
+						{
+							text: 'Open Settings',
+							onPress: () => {
+								// On iOS, this will open the app settings
+								Alert.alert(
+									'Open Settings',
+									'Please go to Settings > Privacy & Security > Photos > MyBackyard and enable access.',
+									[{ text: 'OK' }]
+								);
+							},
+						},
+					]
+				);
+			}
+		};
+		
+		const selectSubImage = async () => {
+			// Use very low quality for instant upload (KB size)
+			const result = await ImagePicker.launchImageLibraryAsync({ 
+				mediaTypes: ImagePicker.MediaTypeOptions.Images, 
+				quality: 0.1, // Very low quality for instant upload
+				base64: false // No need for base64 since we're using Storage
 			});
-		}
+			
+			if (!result.canceled && result.assets && result.assets.length > 0) {
+				const asset = result.assets[0];
+				
+				// Log image size after compression
+				if (asset.fileSize) {
+					const sizeInKB = (asset.fileSize / 1024).toFixed(2);
+					const sizeInMB = (asset.fileSize / (1024 * 1024)).toFixed(2);
+					console.log(`📸 Sub image ${slot} selected: ${asset.uri}`);
+					console.log(`📏 Image size after compression: ${sizeInKB} KB (${sizeInMB} MB)`);
+					console.log(`⚡ Quality setting: 10% (instant upload)`);
+				} else {
+					console.log(`📸 Sub image ${slot} selected: ${asset.uri} (compressed for instant upload)`);
+				}
+				
+				setSubImages(prev => {
+					const next = [...prev];
+					next[slot] = asset.uri;
+					return next;
+				});
+			}
+		};
+		
+		// Start the permission request flow
+		requestPermission();
 	};
 
 	const removeCoverImage = () => {
@@ -788,7 +884,7 @@ export default function MyListingsScreen() {
 				// Success - navigate back to home screen
 				router.replace('/(owner-app)/(main-app)/home');
 			} catch (e) {
-				console.error('Error saving listing:', e);
+				console.log('Error saving listing:', e);
 				// Don't show alert, just log the error
 				console.log('Listing save failed, but continuing...');
 			} finally {

@@ -12,11 +12,11 @@ if (!stripeSecretKey) {
 }
 
 const stripe = new Stripe(stripeSecretKey, {
-  apiVersion: '2023-10-16',
+  apiVersion: '2025-09-30.clover',
 });
 
 // Create Checkout Session
-export const createCheckoutSession = functions.https.onCall(async (data, context) => {
+export const createCheckoutSession = functions.https.onCall(async (data: any, context: any) => {
   try {
     // Verify user is authenticated
     if (!context.auth) {
@@ -70,17 +70,26 @@ export const createCheckoutSession = functions.https.onCall(async (data, context
     });
 
     return {
-      checkoutUrl: session.url
+      checkoutUrl: session.url,
+      sessionId: session.id
     };
   } catch (error: any) {
-    console.error('Error creating checkout session:', error);
-    console.error('Error details:', error.message, error.type, error.raw);
+    console.log('Error creating checkout session:', error);
+    console.log('Error details:', error.message, error.type, error.raw);
+    console.log('Request data:', { 
+      amount: data.amount, 
+      currency: data.currency, 
+      listingId: data.listingId, 
+      ownerId: data.ownerId, 
+      ownerName: data.ownerName 
+    });
+    console.log('User context:', { uid: context.auth?.uid, email: context.auth?.token?.email });
     throw new functions.https.HttpsError('internal', error.message || 'Failed to create checkout session');
   }
 });
 
 // Verify payment and create booking
-export const verifyPaymentAndCreateBooking = functions.https.onCall(async (data, context) => {
+export const verifyPaymentAndCreateBooking = functions.https.onCall(async (data: any, context: any) => {
   try {
     // Verify user is authenticated
     if (!context.auth) {
@@ -253,13 +262,13 @@ export const verifyPaymentAndCreateBooking = functions.https.onCall(async (data,
       message: 'Booking created successfully'
     };
   } catch (error) {
-    console.error('Error verifying payment and creating booking:', error);
+    console.log('Error verifying payment and creating booking:', error);
     throw new functions.https.HttpsError('internal', 'Failed to verify payment and create booking');
   }
 });
 
 // Handle successful payment
-export const handlePaymentSuccess = functions.https.onCall(async (data, context) => {
+export const handlePaymentSuccess = functions.https.onCall(async (data: any, context: any) => {
   try {
     // Verify user is authenticated
     if (!context.auth) {
@@ -331,13 +340,13 @@ export const handlePaymentSuccess = functions.https.onCall(async (data, context)
       message: 'Booking created successfully'
     };
   } catch (error) {
-    console.error('Error handling payment success:', error);
+    console.log('Error handling payment success:', error);
     throw new functions.https.HttpsError('internal', 'Failed to process payment success');
   }
 });
 
 // Get payment history for admin
-export const getPaymentHistory = functions.https.onCall(async (data, context) => {
+export const getPaymentHistory = functions.https.onCall(async (data: any, context: any) => {
   try {
     // Verify user is authenticated
     if (!context.auth) {
@@ -382,7 +391,7 @@ export const getPaymentHistory = functions.https.onCall(async (data, context) =>
       paymentHistory: paymentHistory.sort((a, b) => b.createdAt - a.createdAt)
     };
   } catch (error) {
-    console.error('Error getting payment history:', error);
+    console.log('Error getting payment history:', error);
     throw new functions.https.HttpsError('internal', 'Failed to get payment history');
   }
 });
@@ -397,7 +406,7 @@ export const stripeWebhook = functions.https.onRequest(async (req, res) => {
   try {
     event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
   } catch (err) {
-    console.error('Webhook signature verification failed:', err);
+    console.log('Webhook signature verification failed:', err);
     res.status(400).send('Webhook Error');
     return;
   }
@@ -461,7 +470,7 @@ export const stripeWebhook = functions.https.onRequest(async (req, res) => {
             }
           }
         } catch (error) {
-          console.error('Error creating booking from webhook:', error);
+          console.log('Error creating booking from webhook:', error);
         }
       }
       break;

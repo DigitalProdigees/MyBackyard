@@ -46,7 +46,7 @@ export default function PaymentSuccess() {
         setIsProcessing(false);
       }
     } catch (error) {
-      console.error('Payment verification error:', error);
+      console.log('Payment verification error:', error);
       setError('Failed to verify payment');
       setIsProcessing(false);
     }

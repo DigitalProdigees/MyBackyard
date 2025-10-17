@@ -88,7 +88,7 @@ export const useAuth = (): AuthState => {
                 console.log('⏳ Signup flow: User data not yet available, waiting...');
               }
             }, (error) => {
-              console.error('Error in signup flow listener:', error);
+              console.log('Error in signup flow listener:', error);
               if (timeoutId) {
                 clearTimeout(timeoutId);
               }
@@ -129,7 +129,7 @@ export const useAuth = (): AuthState => {
                 name: authUser.name
               });
             } catch (error) {
-              console.error('Error getting user data for login:', error);
+              console.log('Error getting user data for login:', error);
               // Fallback
               const fallbackUser = {
                 id: firebaseUser.uid,
@@ -147,7 +147,7 @@ export const useAuth = (): AuthState => {
           console.log('❌ No user authenticated');
         }
       } catch (error) {
-        console.error('Auth state change error:', error);
+        console.log('Auth state change error:', error);
         setUser(null);
         setIsAuthenticated(false);
       } finally {

@@ -60,7 +60,7 @@ export function FileMessage({ message, isFromUser }: FileMessageProps) {
             encoding: FileSystem.EncodingType.Base64,
           });
         } catch (error) {
-          console.error('Error writing base64 data:', error);
+          console.log('Error writing base64 data:', error);
           Alert.alert('Error', 'Failed to process image data');
           return;
         }
@@ -80,7 +80,7 @@ export function FileMessage({ message, isFromUser }: FileMessageProps) {
             to: cachePath
           });
         } catch (error) {
-          console.error('Error copying local file:', error);
+          console.log('Error copying local file:', error);
           Alert.alert('Error', 'Failed to access image file');
           return;
         }
@@ -93,7 +93,7 @@ export function FileMessage({ message, isFromUser }: FileMessageProps) {
           );
           finalUri = downloadResult.uri;
         } catch (error) {
-          console.error('Error downloading from URL:', error);
+          console.log('Error downloading from URL:', error);
           Alert.alert('Error', 'Failed to download image from server');
           return;
         }
@@ -107,7 +107,7 @@ export function FileMessage({ message, isFromUser }: FileMessageProps) {
       
       Alert.alert('Success', 'Image saved to your device!');
     } catch (error) {
-      console.error('Download error:', error);
+      console.log('Download error:', error);
       Alert.alert('Error', 'Failed to download image');
     }
   };
@@ -203,7 +203,7 @@ export function FileMessage({ message, isFromUser }: FileMessageProps) {
               style={styles.modalImage}
               resizeMode="contain"
               onError={(error) => {
-                console.error('Image load error:', error);
+                console.log('Image load error:', error);
                 Alert.alert('Error', 'Failed to load image');
                 setShowImageModal(false);
               }}

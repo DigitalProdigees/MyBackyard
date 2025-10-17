@@ -229,7 +229,7 @@ export default function BookingDetails() {
             console.log('❌ No fullName found in Firebase for user:', auth.currentUser.uid);
           }
         } catch (error) {
-          console.error('Error fetching user name from Firebase:', error);
+          console.log('Error fetching user name from Firebase:', error);
         }
       }
     };
@@ -251,7 +251,7 @@ export default function BookingDetails() {
             setListing(listingData);
           }
         } catch (error) {
-          console.error('Error fetching listing:', error);
+          console.log('Error fetching listing:', error);
         }
       }
     };
@@ -281,7 +281,7 @@ export default function BookingDetails() {
       }
       return [];
     } catch (error) {
-      console.error('Error fetching existing bookings:', error);
+      console.log('Error fetching existing bookings:', error);
       return [];
     }
   };
@@ -706,8 +706,16 @@ export default function BookingDetails() {
   const total = subtotal + appFee + taxes;
 
 
+  const [isNavigating, setIsNavigating] = useState(false);
+
   const handlePayNow = async () => {
+    if (isNavigating) {
+      console.log('Navigation already in progress, skipping');
+      return;
+    }
+    
     console.log('Processing payment...');
+    setIsNavigating(true);
     
     // Navigate to payment processing screen with booking data
     // The booking will be saved in the payment processing screen after successful payment
@@ -728,6 +736,11 @@ export default function BookingDetails() {
         ownerName: listing?.ownerName || 'Property Owner'
       }
     });
+    
+    // Reset navigation state after a delay
+    setTimeout(() => {
+      setIsNavigating(false);
+    }, 1000);
   };
 
   return (
@@ -925,6 +938,7 @@ export default function BookingDetails() {
             <View style={styles.buttonContainer}>
               <GradientButton
                 text={
+                  isNavigating ? "Processing..." :
                   !isDateValid ? dateError || "Day slot not available" :
                   !isTimeValid ? timeError || "Time slot not available" :
                   !startTime || !endTime ? "Select Time" :
@@ -933,9 +947,9 @@ export default function BookingDetails() {
                 onPress={handlePayNow}
                 containerStyle={{
                   ...styles.paymentButton,
-                  ...((!isDateValid || !isTimeValid || !startTime || !endTime) ? styles.disabledButton : {})
+                  ...((!isDateValid || !isTimeValid || !startTime || !endTime || isNavigating) ? styles.disabledButton : {})
                 }}
-                disabled={!isDateValid || !isTimeValid || !startTime || !endTime}
+                disabled={!isDateValid || !isTimeValid || !startTime || !endTime || isNavigating}
               />
             </View>
         </View>

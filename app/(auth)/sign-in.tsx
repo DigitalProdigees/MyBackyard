@@ -27,7 +27,7 @@ export default function SignIn() {
   // Set development values after component mounts to prevent flash
   useEffect(() => {
     if (__DEV__) {
-      setEmail('tamoor@gmail.com');
+      setEmail('tam@gmail.com');
       setPassword('Profe$$ional78');
       // Uncomment the line below to reset onboarding for testing
       // AsyncStorage.removeItem('onboarded');
@@ -111,7 +111,7 @@ export default function SignIn() {
       console.log('✅ Sign in successful, auth hook will handle navigation');
       // Auth hook will handle navigation automatically
     } catch (error: any) {
-      console.error('❌ Sign in failed:', error);
+      console.log('❌ Sign in failed:', error);
       const code = error?.code as string | undefined;
       if (
         code === 'auth/invalid-credential' ||

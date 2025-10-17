@@ -60,7 +60,7 @@ class AuthService {
       
       return { exists };
     } catch (error) {
-      console.error('Error checking user existence:', error);
+      console.log('Error checking user existence:', error);
       return { 
         exists: false, 
         error: error instanceof Error ? error.message : 'Unknown error occurred' 
@@ -105,7 +105,7 @@ class AuthService {
         token,
       };
     } catch (error) {
-      console.error('Signup error:', error);
+      console.log('Signup error:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error occurred',
@@ -142,7 +142,7 @@ class AuthService {
         token,
       };
     } catch (error) {
-      console.error('Signin error:', error);
+      console.log('Signin error:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error occurred',
@@ -178,7 +178,7 @@ class AuthService {
         error: 'Invalid token',
       };
     } catch (error) {
-      console.error('Session verification error:', error);
+      console.log('Session verification error:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error occurred',
@@ -206,7 +206,7 @@ class AuthService {
       console.log('Signout successful');
       return { success: true };
     } catch (error) {
-      console.error('Signout error:', error);
+      console.log('Signout error:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error occurred',
@@ -232,7 +232,7 @@ class AuthService {
       console.log('Password reset request successful');
       return { success: true, message: 'Password reset email sent (mock)' };
     } catch (error) {
-      console.error('Password reset error:', error);
+      console.log('Password reset error:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error occurred',

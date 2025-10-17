@@ -137,7 +137,7 @@ export default function ForgotPassword() {
         ]
       );
     } catch (e: any) {
-      console.error('ForgotPassword: send link error', e?.code, e?.message);
+      console.log('ForgotPassword: send link error', e?.code, e?.message);
       if (e?.code === 'auth/user-not-found') {
         setEmailError('This email is not registered to any account');
       } else {

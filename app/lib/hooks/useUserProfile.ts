@@ -73,7 +73,7 @@ export function useUserProfile(): UseUserProfileReturn {
     try {
       return await userService.profileExists(uid);
     } catch (err) {
-      console.error('Error checking if profile exists:', err);
+      console.log('Error checking if profile exists:', err);
       return false;
     }
   }, []);

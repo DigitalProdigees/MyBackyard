@@ -40,5 +40,5 @@ export { AdditionalServicesModal } from './dialogs/AdditionalServicesModal';
 export { default as CalculateAreaModal } from './dialogs/CalculateAreaModal';
 
 // Export menu components
-export { SidebarMenu } from './menu/SidebarMenu';
+export { default as CustomDrawerContent } from './menu/CustomDrawerContent';
 export { ProfileSection } from './menu/ProfileSection';

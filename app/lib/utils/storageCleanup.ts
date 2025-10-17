@@ -42,7 +42,7 @@ export class StorageCleanup {
       }
       
     } catch (error) {
-      console.error('StorageCleanup: Error during storage check:', error);
+      console.log('StorageCleanup: Error during storage check:', error);
     }
   }
 
@@ -71,7 +71,7 @@ export class StorageCleanup {
       console.log('StorageCleanup: Cleanup completed');
       
     } catch (error) {
-      console.error('StorageCleanup: Error during cleanup:', error);
+      console.log('StorageCleanup: Error during cleanup:', error);
     }
   }
 
@@ -134,7 +134,7 @@ export class StorageCleanup {
         }
       }
     } catch (error) {
-      console.error('StorageCleanup: Error cleaning file system cache:', error);
+      console.log('StorageCleanup: Error cleaning file system cache:', error);
     }
   }
 
@@ -154,7 +154,7 @@ export class StorageCleanup {
       await this.cleanupFileSystemCache();
       
     } catch (error) {
-      console.error('StorageCleanup: Error during force cleanup:', error);
+      console.log('StorageCleanup: Error during force cleanup:', error);
     }
   }
 
@@ -180,7 +180,7 @@ export class StorageCleanup {
         estimatedSize: `${(totalSize / 1024 / 1024).toFixed(2)}MB`
       };
     } catch (error) {
-      console.error('StorageCleanup: Error getting storage stats:', error);
+      console.log('StorageCleanup: Error getting storage stats:', error);
       return { totalKeys: 0, estimatedSize: '0MB' };
     }
   }

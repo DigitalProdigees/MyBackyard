@@ -83,7 +83,7 @@ class ChatService {
         }
       }
     } catch (error) {
-      console.error('Error clearing temporary data:', error);
+      console.log('Error clearing temporary data:', error);
     }
   }
 
@@ -135,7 +135,7 @@ class ChatService {
         console.log(`ChatService: User ${currentUserId} is now online`);
       }
     } catch (error) {
-      console.error('Error setting user online:', error);
+      console.log('Error setting user online:', error);
     }
   }
 
@@ -155,7 +155,7 @@ class ChatService {
         console.log(`ChatService: User ${currentUserId} is now offline`);
       }
     } catch (error) {
-      console.error('Error setting user offline:', error);
+      console.log('Error setting user offline:', error);
     }
   }
 
@@ -181,7 +181,7 @@ class ChatService {
       // Default to offline if no status found
       return 'offline';
     } catch (error) {
-      console.error('Error getting user status:', error);
+      console.log('Error getting user status:', error);
       return 'offline'; // Default to offline if error
     }
   }
@@ -194,7 +194,7 @@ class ChatService {
       const onlineUsers = snapshot.val() || [];
       return onlineUsers;
     } catch (error) {
-      console.error('Error getting online users:', error);
+      console.log('Error getting online users:', error);
       return [];
     }
   }
@@ -213,7 +213,7 @@ class ChatService {
       }
       
     } catch (error) {
-      console.error('Error updating user status:', error);
+      console.log('Error updating user status:', error);
     }
   }
 
@@ -269,7 +269,7 @@ class ChatService {
       
       return tempUserId;
     } catch (error) {
-      console.error('Error getting current user ID:', error);
+      console.log('Error getting current user ID:', error);
       return null;
     }
   }
@@ -332,7 +332,7 @@ class ChatService {
 
       return conversations;
     } catch (error) {
-      console.error('Error getting chat conversations:', error);
+      console.log('Error getting chat conversations:', error);
       return [];
     }
   }
@@ -369,7 +369,7 @@ class ChatService {
       
       return conversation;
     } catch (error) {
-      console.error('Error creating/updating conversation:', error);
+      console.log('Error creating/updating conversation:', error);
       throw error;
     }
   }
@@ -389,7 +389,7 @@ class ChatService {
       }
       return [];
     } catch (error) {
-      console.error('Error getting messages:', error);
+      console.log('Error getting messages:', error);
       return [];
     }
   }
@@ -430,7 +430,7 @@ class ChatService {
 
       return newMessage;
     } catch (error) {
-      console.error('Error sending message:', error);
+      console.log('Error sending message:', error);
       throw error;
     }
   }
@@ -462,7 +462,7 @@ class ChatService {
         }
       }
     } catch (error) {
-      console.error('Error marking messages as read:', error);
+      console.log('Error marking messages as read:', error);
     }
   }
 
@@ -491,7 +491,7 @@ class ChatService {
             contactEmail = contactUser.email || '';
           }
         } catch (error) {
-          console.error('Error fetching contact user data:', error);
+          console.log('Error fetching contact user data:', error);
         }
 
         // If we still don't have a name and we have a listing, try to get owner info
@@ -508,7 +508,7 @@ class ChatService {
               }
             }
           } catch (error) {
-            console.error('Error fetching listing data for contact:', error);
+            console.log('Error fetching listing data for contact:', error);
           }
         }
 
@@ -527,7 +527,7 @@ class ChatService {
         console.log('Contact entry created for:', contactId, 'with name:', contactName);
       }
     } catch (error) {
-      console.error('Error creating contact entry:', error);
+      console.log('Error creating contact entry:', error);
     }
   }
 
@@ -569,7 +569,7 @@ class ChatService {
         console.log('Contact entry created for sender:', currentUserId);
       }
     } catch (error) {
-      console.error('Error creating contact entry for sender:', error);
+      console.log('Error creating contact entry for sender:', error);
     }
   }
 
@@ -603,7 +603,7 @@ class ChatService {
           senderEmail = senderUser.email || '';
         }
       } catch (error) {
-        console.error('Error fetching sender user data:', error);
+        console.log('Error fetching sender user data:', error);
       }
 
       // Create contact for the sender (from receiver's perspective)
@@ -628,7 +628,7 @@ class ChatService {
       await set(receiverConversationRef, conversation);
       console.log('Conversation created for receiver:', receiverId, 'with sender:', senderId);
     } catch (error) {
-      console.error('Error creating conversation for receiver:', error);
+      console.log('Error creating conversation for receiver:', error);
     }
   }
 
@@ -660,7 +660,7 @@ class ChatService {
           otherUserName = otherUser.fullName || otherUser.displayName || 'User';
         }
       } catch (error) {
-        console.error('Error fetching other user data:', error);
+        console.log('Error fetching other user data:', error);
       }
 
       // Create conversation card with proper message display
@@ -712,8 +712,8 @@ class ChatService {
       const userConversationsRef = ref(rtdb, `users/${userId}/conversations/${conversationId}`);
       await set(userConversationsRef, conversationCard);
     } catch (error) {
-      console.error('Error creating conversation card:', error);
-      console.error('Conversation card data:', {
+      console.log('Error creating conversation card:', error);
+      console.log('Conversation card data:', {
         userId,
         otherUserId,
         messageType: message.messageType,
@@ -769,7 +769,7 @@ class ChatService {
       
       console.log('=== END DEBUG ===');
     } catch (error) {
-      console.error('Debug error:', error);
+      console.log('Debug error:', error);
     }
   }
 
@@ -780,7 +780,7 @@ class ChatService {
     try {
       await cleanupLegacyChatData();
     } catch (error) {
-      console.error('ChatService: Error during storage cleanup:', error);
+      console.log('ChatService: Error during storage cleanup:', error);
     }
   }
 
@@ -791,7 +791,7 @@ class ChatService {
     try {
       await emergencyCleanup();
     } catch (error) {
-      console.error('ChatService: Error during emergency storage cleanup:', error);
+      console.log('ChatService: Error during emergency storage cleanup:', error);
     }
   }
 
@@ -819,7 +819,7 @@ class ChatService {
 
       return totalUnread;
     } catch (error) {
-      console.error('Error getting total unread count:', error);
+      console.log('Error getting total unread count:', error);
       return 0;
     }
   }
@@ -847,7 +847,7 @@ class ChatService {
       // This function only needs to update the conversation's unreadCount
       
     } catch (error) {
-      console.error('Error marking conversation as read:', error);
+      console.log('Error marking conversation as read:', error);
     }
   }
 

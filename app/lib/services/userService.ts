@@ -88,7 +88,7 @@ class UserService {
         displayName: data.displayName,
       };
     } catch (error) {
-      console.error('Mock create profile error:', error);
+      console.log('Mock create profile error:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error occurred',
@@ -118,7 +118,7 @@ class UserService {
         profile,
       };
     } catch (error) {
-      console.error('Mock get profile error:', error);
+      console.log('Mock get profile error:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error occurred',
@@ -134,7 +134,7 @@ class UserService {
       const response = await this.getProfile(uid);
       return response.success && !!response.profile;
     } catch (error) {
-      console.error('Mock profile exists check error:', error);
+      console.log('Mock profile exists check error:', error);
       return false;
     }
   }

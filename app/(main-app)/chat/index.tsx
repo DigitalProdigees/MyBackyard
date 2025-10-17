@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Image, TextInput, StyleSheet, Dimensions, Keyboard, Platform, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
+import { useNavigationState } from '@react-navigation/native';
 import { GradientBackground } from '../../components/GradientBackground';
 import { Icons } from '../../../constants/icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -43,7 +44,7 @@ const prepareFileForSharing = async (fileData: any) => {
       mimeType: fileData.fileType || 'image/jpeg'
     };
   } catch (error) {
-    console.error('Error preparing file for sharing:', error);
+    console.log('Error preparing file for sharing:', error);
     return fileData; // Return original if preparation fails
   }
 };
@@ -65,6 +66,7 @@ export default function Chat() {
 	const chatService = ChatService.getInstance();
 	const lastStatusRef = useRef<string>('');
 	const lastMessageCountRef = useRef<number>(0);
+	const navigationState = useNavigationState(state => state);
 
 	// Debug logging
 	console.log('Chat screen received params:', { contactName, contactAvatar, ownerId, listingId });
@@ -103,7 +105,7 @@ export default function Chat() {
 						await chatService.markConversationAsRead(conversationId, currentUserId);
 						console.log('Main app chat: Unread count reset on exit');
 					} catch (error) {
-						console.error('Main app chat: Error resetting unread count on exit:', error);
+						console.log('Main app chat: Error resetting unread count on exit:', error);
 					}
 				}
 			};
@@ -124,7 +126,7 @@ export default function Chat() {
 						await chatService.markConversationAsRead(conversationId, currentUserId);
 						console.log('Main app chat: Messages marked as read and unread count reset to zero on focus');
 					} catch (error) {
-						console.error('Main app chat: Error marking messages as read on focus:', error);
+						console.log('Main app chat: Error marking messages as read on focus:', error);
 					}
 				}
 			};
@@ -139,7 +141,7 @@ export default function Chat() {
 							await chatService.markConversationAsRead(conversationId, currentUserId);
 							console.log('Main app chat: Unread count reset on blur');
 						} catch (error) {
-							console.error('Main app chat: Error resetting unread count on blur:', error);
+							console.log('Main app chat: Error resetting unread count on blur:', error);
 						}
 					}
 				};
@@ -261,7 +263,7 @@ export default function Chat() {
 					await chatService.markConversationAsRead(conversation.id, currentUserId);
 					console.log('Main app chat: Unread count immediately reset to zero on chat entry');
 				} catch (error) {
-					console.error('Main app chat: Error immediately resetting unread count:', error);
+					console.log('Main app chat: Error immediately resetting unread count:', error);
 				}
 			}
 
@@ -309,7 +311,7 @@ export default function Chat() {
 								console.log('Main app chat: Conversation card updated to reflect read status');
 							}
 						} catch (error) {
-							console.error('Main app chat: Error marking new messages as read:', error);
+							console.log('Main app chat: Error marking new messages as read:', error);
 						}
 					}
 					
@@ -335,11 +337,11 @@ export default function Chat() {
 					console.log('Main app chat: Initial messages marked as read and unread count reset to zero');
 				}
 			} catch (error) {
-				console.error('Main app chat: Error marking initial messages as read:', error);
+				console.log('Main app chat: Error marking initial messages as read:', error);
 			}
 
 		} catch (error) {
-			console.error('Error initializing chat:', error);
+			console.log('Error initializing chat:', error);
 		} finally {
 			setIsLoadingMessages(false);
 		}
@@ -358,7 +360,7 @@ export default function Chat() {
 				setContactInitials(contactName.split(' ').map(n => n[0]).join('').toUpperCase());
 			}
 		} catch (error) {
-			console.error('Error loading contact profile image:', error);
+			console.log('Error loading contact profile image:', error);
 		}
 	};
 
@@ -383,7 +385,7 @@ export default function Chat() {
 				});
 			}
 		} catch (error) {
-			console.error('Error picking image:', error);
+			console.log('Error picking image:', error);
 			Alert.alert('Error', 'Failed to select image');
 		}
 	};
@@ -393,7 +395,7 @@ export default function Chat() {
 			try {
 				const currentUserId = await chatService.getCurrentUserId();
 				if (!currentUserId) {
-					console.error('Failed to get current user ID');
+					console.log('Failed to get current user ID');
 					return;
 				}
 
@@ -481,7 +483,7 @@ export default function Chat() {
 						));
 					})
 					.catch((error) => {
-						console.error('Error sending message:', error);
+						console.log('Error sending message:', error);
 						// Update message status to failed
 						setMessages(prev => prev.map(msg => 
 							msg.id === optimisticMessage.id 
@@ -490,7 +492,7 @@ export default function Chat() {
 						));
 					});
 			} catch (error) {
-				console.error('Error preparing message:', error);
+				console.log('Error preparing message:', error);
 			}
 		}
 	};
@@ -526,7 +528,7 @@ export default function Chat() {
 
 			{/* Header */}
 			<View style={styles.header}>
-				<TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+				<TouchableOpacity onPress={() => router.push('/(main-app)/messaging')} style={styles.backButton}>
 					<Image source={Icons.back} style={styles.backIcon} />
 				</TouchableOpacity>
 

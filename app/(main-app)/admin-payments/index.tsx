@@ -46,7 +46,7 @@ export default function AdminPayments() {
         setError('Failed to fetch payment history');
       }
     } catch (error) {
-      console.error('Error fetching payment history:', error);
+      console.log('Error fetching payment history:', error);
       setError(error instanceof Error ? error.message : 'Failed to fetch payment history');
     } finally {
       setLoading(false);

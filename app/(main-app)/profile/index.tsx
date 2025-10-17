@@ -39,7 +39,7 @@ export default function Profile() {
     try {
       return params.profileData ? JSON.parse(params.profileData as string) : null;
     } catch (error) {
-      console.error('Error parsing profile data from params:', error);
+      console.log('Error parsing profile data from params:', error);
       return null;
     }
   })();
@@ -119,7 +119,7 @@ export default function Profile() {
           }
         }
       } catch (error) {
-        console.error('Profile: Error fetching fullName:', error);
+        console.log('Profile: Error fetching fullName:', error);
         if (retryCount < 3) {
           // Retry after a short delay on error
           console.log('Profile: Retrying fetch in 1 second after error...');
@@ -131,12 +131,12 @@ export default function Profile() {
     fetchFullName();
   }, [user?.id, auth.currentUser?.uid]);
 
-  // Auto-navigate back to notifications after 2 seconds when success dialog shows in edit mode
+  // Auto-navigate back after 2 seconds when success dialog shows in edit mode
   useEffect(() => {
     if (showSuccessDialog && isEditModeFromParams) {
       const timer = setTimeout(() => {
         setShowSuccessDialog(false);
-        router.push('/(main-app)/notifications');
+        router.back();
       }, 2000);
 
       return () => clearTimeout(timer);
@@ -279,7 +279,7 @@ export default function Profile() {
         await handleImageSelection(asset.uri);
       }
     } catch (error) {
-      console.error('Camera error:', error);
+      console.log('Camera error:', error);
       Alert.alert('Error', 'Failed to open camera');
     }
   };
@@ -317,7 +317,7 @@ export default function Profile() {
         await handleImageSelection(asset.uri);
       }
     } catch (error) {
-      console.error('Image library error:', error);
+      console.log('Image library error:', error);
       Alert.alert('Error', 'Failed to open photo library');
     }
   };
@@ -355,7 +355,7 @@ export default function Profile() {
       
       Alert.alert('Success', 'Profile image updated successfully!');
     } catch (error) {
-      console.error('Error saving profile image:', error);
+      console.log('Error saving profile image:', error);
       Alert.alert('Error', 'Failed to save profile image');
     } finally {
       setIsImageLoading(false);
@@ -394,7 +394,7 @@ export default function Profile() {
           }
         }
       } catch (error) {
-        console.error('Error loading profile image:', error);
+        console.log('Error loading profile image:', error);
         // Clear profile image on error to show placeholder
         setProfileImage(null);
       }
@@ -418,6 +418,15 @@ export default function Profile() {
 
       {/* Custom Header */}
       <View style={styles.customHeader}>
+        <TouchableOpacity
+          style={styles.backButtonContainer}
+          onPress={() => router.back()}
+        >
+          <Image
+            source={require('../../../assets/icons/back.png')}
+            style={styles.backIcon}
+          />
+        </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.bellIconContainer}
@@ -655,10 +664,23 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   customHeader: {
-    paddingHorizontal: 44,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 24,
     paddingTop: 36,
-
     paddingBottom: 20,
+  },
+  backButtonContainer: {
+    width: 54,
+    height: 54,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  backIcon: {
+    width: 54,
+    height: 54,
+    resizeMode: 'contain',
   },
   headerTitle: {
     color: 'white',
@@ -671,8 +693,8 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    top: 12,
-    alignSelf: 'flex-end'
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   bellIcon: {
     width: Math.min(width * 0.17, 80), // Responsive icon width

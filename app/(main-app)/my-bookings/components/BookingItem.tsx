@@ -81,7 +81,7 @@ export function BookingItem({
     try {
       const uid = auth.currentUser?.uid;
       if (!uid) {
-        console.error('User not authenticated');
+        console.log('User not authenticated');
         return;
       }
 
@@ -127,7 +127,7 @@ export function BookingItem({
               userName = bookingData.fullName || 'Guest';
             }
           } catch (error) {
-            console.error('❌ Error fetching user fullName for review:', error);
+            console.log('❌ Error fetching user fullName for review:', error);
             userName = bookingData.fullName || 'Guest';
           }
 
@@ -178,7 +178,7 @@ export function BookingItem({
       setToastType('success');
       setShowToast(true);
     } catch (error) {
-      console.error('Error submitting rating:', error);
+      console.log('Error submitting rating:', error);
       
       // Show error toast
       setToastMessage('Failed to submit review');

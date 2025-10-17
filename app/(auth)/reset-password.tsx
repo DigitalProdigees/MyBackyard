@@ -115,7 +115,7 @@ export default function ResetPassword() {
         await confirmPasswordReset(auth, oobCode, newPassword);
         setShowSuccessDialog(true);
       } catch (e) {
-        console.error('ResetPassword: confirm error', e);
+        console.log('ResetPassword: confirm error', e);
       }
     }
   };

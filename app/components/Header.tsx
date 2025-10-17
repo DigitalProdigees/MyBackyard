@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { Icons } from '../../constants/icons';
-import { router } from 'expo-router';
+import { router, usePathname } from 'expo-router';
 import { CircleButton } from './buttons';
-import { SidebarMenu } from './menu';
 import { useAppSelector } from '../store/hooks';
 import { auth, rtdb } from '../lib/firebase';
 import { ref, get, onValue, off } from 'firebase/database';
 import ChatService from '../lib/services/chatService';
 import { UnreadBanner } from './UnreadBanner';
 import { useAuth } from '../lib/hooks/useAuth';
+import { DrawerActions, useNavigation } from '@react-navigation/native';
 
 export type HeaderComponentType = 'menu' | 'back' | 'notification' | 'bookmark' | 'none';
 
@@ -41,7 +41,8 @@ export function Header({
   refreshTrigger
 }: HeaderProps) {
   const { user } = useAuth();
-  const [isMenuVisible, setIsMenuVisible] = useState(false);
+  const navigation = useNavigation();
+  const pathname = usePathname();
   const [fullName, setFullName] = useState<string>('');
   const [unreadCount, setUnreadCount] = useState<number>(0);
 
@@ -56,7 +57,7 @@ export function Header({
             setFullName(name);
           }
         } catch (error) {
-          console.error('Error fetching fullName:', error);
+          console.log('Error fetching fullName:', error);
         }
       }
     };
@@ -91,7 +92,7 @@ export function Header({
               console.log('Header: Force refresh completed, current unreadCount should be:', unreadConversationsCount);
             }, 100);
           } catch (error) {
-            console.error('Header: Error in force refresh:', error);
+            console.log('Header: Error in force refresh:', error);
           }
         }
       };
@@ -121,7 +122,7 @@ export function Header({
           console.log('Header: Setting unreadCount state to:', unreadConversationsCount);
           setUnreadCount(unreadConversationsCount);
         } catch (error) {
-          console.error('Error tracking unread conversations:', error);
+          console.log('Error tracking unread conversations:', error);
         }
       } else {
         console.log('Header: No user.id, skipping unread tracking');
@@ -161,7 +162,7 @@ export function Header({
           // Force immediate re-render to ensure the banner updates instantly
           console.log('Header: Real-time update completed, banner should now reflect unreadCount:', unreadConversationsCount);
         } catch (error) {
-          console.error('Error updating unread count:', error);
+          console.log('Error updating unread count:', error);
         }
       });
 
@@ -192,44 +193,21 @@ export function Header({
     if (onMenuPress) {
       onMenuPress();
     } else {
-      setIsMenuVisible(true);
+      // Open the drawer
+      try {
+        console.log('Header: Attempting to open drawer, pathname:', pathname);
+        const nav = navigation as any;
+        if (nav.openDrawer) {
+          nav.openDrawer();
+        } else if (nav.dispatch) {
+          nav.dispatch(DrawerActions.openDrawer());
+        } else {
+          console.log('Header: Navigation does not have drawer methods');
+        }
+      } catch (error) {
+        console.log('Header: Error opening drawer:', error);
+      }
     }
-  };
-
-  const handleCloseMenu = () => {
-    setIsMenuVisible(false);
-  };
-
-  const handleEditProfile = () => {
-    setIsMenuVisible(false);
-    router.push('/(main-app)/profile');
-  };
-
-  const getProfileInfo = () => {
-    // Use fullName from RTDB if available, otherwise fallback to user.name
-    let displayName = fullName || user?.name;
-
-    if (!displayName && user?.email) {
-      // Extract name from email (everything before @)
-      const emailName = user.email.split('@')[0];
-      // Capitalize first letter and replace dots/underscores with spaces
-      displayName = emailName
-        .replace(/[._]/g, ' ')
-        .split(' ')
-        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(' ');
-    }
-
-    // Final fallback
-    displayName = displayName || 'User';
-
-    const email = user?.email || '';
-
-    return {
-      name: displayName,
-      location: 'Update your location',
-      email: email,
-    };
   };
 
   const renderComponent = (type: HeaderComponentType, position: 'left' | 'center' | 'right') => {
@@ -275,32 +253,22 @@ export function Header({
   };
 
   return (
-    <>
-      <View style={styles.header}>
-        {/* Left component */}
-        <View style={styles.headerLeft}>
-          {customLeftComponent || renderComponent(leftComponent, 'left')}
-        </View>
-
-        {/* Center component */}
-        <View style={styles.headerCenter}>
-          {customCenterComponent || renderComponent(centerComponent, 'center')}
-        </View>
-
-        {/* Right component */}
-        <View style={styles.headerRight}>
-          {customRightComponent || renderComponent(rightComponent, 'right')}
-        </View>
+    <View style={styles.header}>
+      {/* Left component */}
+      <View style={styles.headerLeft}>
+        {customLeftComponent || renderComponent(leftComponent, 'left')}
       </View>
 
-      {/* Sidebar Menu */}
-      <SidebarMenu
-        isVisible={isMenuVisible}
-        onClose={handleCloseMenu}
-        profileInfo={getProfileInfo()}
-        onEditProfile={handleEditProfile}
-      />
-    </>
+      {/* Center component */}
+      <View style={styles.headerCenter}>
+        {customCenterComponent || renderComponent(centerComponent, 'center')}
+      </View>
+
+      {/* Right component */}
+      <View style={styles.headerRight}>
+        {customRightComponent || renderComponent(rightComponent, 'right')}
+      </View>
+    </View>
   );
 }
 
