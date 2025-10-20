@@ -6,18 +6,13 @@ interface MenuItemProps {
   icon?: any;
   onPress: () => void;
   rightComponent?: React.ReactNode;
-  disabled?: boolean;
 }
 
-export function MenuItem({ title, icon, onPress, rightComponent, disabled = false }: MenuItemProps) {
+export function MenuItem({ title, icon, onPress, rightComponent }: MenuItemProps) {
   return (
-    <TouchableOpacity 
-      style={[styles.container, disabled && styles.disabledContainer]} 
-      onPress={disabled ? () => {} : onPress}
-      disabled={disabled}
-    >
-      {icon && <Image source={icon} style={[styles.icon, disabled && styles.disabledIcon]} />}
-      <Text style={[styles.title, disabled && styles.disabledText]}>{title}</Text>
+    <TouchableOpacity style={styles.container} onPress={onPress}>
+      {icon && <Image source={icon} style={styles.icon} />}
+      <Text style={styles.title}>{title}</Text>
       {rightComponent && <View style={styles.rightComponent}>{rightComponent}</View>}
     </TouchableOpacity>
   );
@@ -32,16 +27,10 @@ const styles = StyleSheet.create({
     height: 40,
     justifyContent: 'center',
   },
-  disabledContainer: {
-    opacity: 0.5,
-  },
   icon: {
     width: 24,
     height: 24,
     marginRight: 15,
-  },
-  disabledIcon: {
-    opacity: 0.5,
   },
   title: {
     color: '#FFFFFF',
@@ -49,10 +38,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     flex: 1,
   },
-  disabledText: {
-    color: '#CCCCCC',
-  },
   rightComponent: {
     marginLeft: 'auto',
   },
-}); 
+});

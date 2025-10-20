@@ -13,6 +13,7 @@ import ChatService from '../../lib/services/chatService';
 import { UnreadBanner } from '../UnreadBanner';
 import { ref, onValue, off } from 'firebase/database';
 import { rtdb } from '../../lib/firebase';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 
 // Menu item interface
 interface MenuItemData {
@@ -21,6 +22,7 @@ interface MenuItemData {
   icon?: any;
   onPress: () => void;
   rightComponent?: React.ReactNode;
+  disabled?: boolean;
 }
 
 interface ProfileInfo {
@@ -46,6 +48,10 @@ export function SidebarMenu({ isVisible, onClose, profileInfo, onEditProfile }: 
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const [locationText, setLocationText] = useState<string>('');
   const [displayName, setDisplayName] = useState<string>('');
+  const [stripeStatus, setStripeStatus] = useState({
+    status: 'not_created',
+    isChecking: false
+  });
   const { user } = useAuth();
 
   // Load profile data from Firebase
@@ -149,6 +155,50 @@ export function SidebarMenu({ isVisible, onClose, profileInfo, onEditProfile }: 
     }
   }, [user?.id, isVisible]);
 
+  // Check Stripe Connect status for owners
+  useEffect(() => {
+    const checkStripeStatus = async () => {
+      console.log('SidebarMenu: Checking Stripe status', { 
+        isVisible, 
+        userId: user?.id, 
+        userType: user?.type,
+        isOwner: user?.type === 'owner'
+      });
+      
+      if (!isVisible || !user?.id || user?.type !== 'owner') {
+        console.log('SidebarMenu: Not checking Stripe status - not owner or not visible');
+        return;
+      }
+      
+      setStripeStatus(prev => ({ ...prev, isChecking: true }));
+      
+      try {
+        const functions = getFunctions();
+        const checkStatus = httpsCallable(functions, 'checkConnectAccountStatus');
+        
+        const result = await checkStatus({});
+        const data = result.data as any;
+        
+        console.log('SidebarMenu: Stripe status result', data);
+        
+        if (data.success) {
+          setStripeStatus({
+            status: data.status,
+            isChecking: false
+          });
+          console.log('SidebarMenu: Stripe status updated', data.status);
+        }
+      } catch (error) {
+        console.log('Error checking Stripe status in sidebar:', error);
+        setStripeStatus(prev => ({ ...prev, isChecking: false }));
+      }
+    };
+
+    if (isVisible) {
+      checkStripeStatus();
+    }
+  }, [user?.id, user?.type, isVisible]);
+
   if (!isVisible) return null;
 
   const handleNotificationToggle = (value: boolean) => {
@@ -208,90 +258,165 @@ export function SidebarMenu({ isVisible, onClose, profileInfo, onEditProfile }: 
     setShowLogoutAlert(false);
   };
 
+  // Check if owner is verified
+  const isOwner = user?.type === 'owner';
+  const isVerified = stripeStatus.status === 'verified';
+  const isOwnerVerified = !isOwner || isVerified;
+  const isOwnerPending = isOwner && !isVerified;
+  
+  // TEMPORARY: Force disabled state for testing - disable all owners for now
+  const forceDisabled = isOwner; // Force disable ALL owners for testing
+  
+  // TEST: Always disable for testing
+  const alwaysDisabled = true;
+  
+  // DEBUG: Always show disabled state for testing
+  console.log('🔍 DEBUG: Menu disabled state', {
+    userType: user?.type,
+    isOwner,
+    forceDisabled,
+    alwaysDisabled,
+    stripeStatus: stripeStatus.status
+  });
+  
+  console.log('SidebarMenu: Verification status', {
+    userType: user?.type,
+    stripeStatus: stripeStatus.status,
+    isOwner,
+    isVerified,
+    isOwnerVerified,
+    isOwnerPending,
+    forceDisabled
+  });
+
   const menuItems: MenuItemData[] = [
     {
       id: 'home',
       title: 'Home',
-      onPress: () => {
+      onPress: (isOwnerPending || forceDisabled || alwaysDisabled) ? () => {} : () => {
         onClose();
-        router.replace('/(main-app)/home');
+        if (user?.type === 'owner') {
+          router.replace('/(owner-app)/(main-app)/home');
+        } else {
+          router.replace('/(main-app)/home');
+        }
       },
+      disabled: isOwnerPending || forceDisabled || alwaysDisabled,
     },
-    {
+    // Only show bookings for verified users
+    ...(isOwnerVerified ? [{
       id: 'bookings',
       title: 'My Bookings',
       onPress: () => {
         onClose();
-        router.push('/(main-app)/my-bookings');
+        if (user?.type === 'owner') {
+          router.push('/(owner-app)/(main-app)/my-bookings');
+        } else {
+          router.push('/(main-app)/my-bookings');
+        }
       },
-    },
-    {
+    }] : []),
+    // Only show messaging for verified users
+    ...(isOwnerVerified ? [{
       id: 'messaging',
       title: 'Messaging',
       onPress: () => {
         onClose();
-        router.push('/(main-app)/messaging');
+        if (user?.type === 'owner') {
+          router.push('/(owner-app)/(main-app)/messaging');
+        } else {
+          router.push('/(main-app)/messaging');
+        }
       },
       rightComponent: unreadCount > 0 ? (
         <UnreadBanner count={unreadCount} size="small" position="top-right" />
       ) : undefined,
-    },
+    }] : []),
     {
       id: 'notifications',
       title: 'Notifications',
-      onPress: () => {}, // No navigation, just toggle
+      onPress: (isOwnerPending || forceDisabled || alwaysDisabled) ? () => {} : () => {}, // No navigation, just toggle
+      disabled: isOwnerPending || forceDisabled || alwaysDisabled,
       rightComponent: (
         <Switch
           value={notificationsEnabled}
-          onValueChange={handleNotificationToggle}
+          onValueChange={(isOwnerPending || forceDisabled || alwaysDisabled) ? () => {} : handleNotificationToggle}
           trackColor={{ false: '#767577', true: '#81b0ff' }}
           thumbColor={notificationsEnabled ? '#2E225C' : '#f4f3f4'}
-          style={styles.switch}
+          style={[styles.switch, (isOwnerPending || forceDisabled || alwaysDisabled) && styles.disabledSwitch]}
+          disabled={isOwnerPending || forceDisabled || alwaysDisabled}
         />
       ),
     },
   ];
 
   const settingsItems: MenuItemData[] = [
-    {
-      id: 'changePassword',
-      title: 'Change Password',
-      onPress: () => {
-        onClose();
-        router.push('/(main-app)/change-pass');
+    // Only show profile-related settings for verified users
+    ...(isOwnerVerified ? [
+      {
+        id: 'changePassword',
+        title: 'Change Password',
+        onPress: () => {
+          onClose();
+          if (user?.type === 'owner') {
+            router.push('/(owner-app)/(main-app)/change-pass');
+          } else {
+            router.push('/(main-app)/change-pass');
+          }
+        },
       },
-    },
-    {
-      id: 'resetPassword',
-      title: 'Reset Password',
-      onPress: () => {
-        onClose();
-        router.push('/(main-app)/reset-pass');
+      {
+        id: 'resetPassword',
+        title: 'Reset Password',
+        onPress: () => {
+          onClose();
+          if (user?.type === 'owner') {
+            router.push('/(owner-app)/(main-app)/reset-pass');
+          } else {
+            router.push('/(main-app)/reset-pass');
+          }
+        },
       },
-    },
+    ] : []),
+    // Always show contact and legal pages but disable for pending owners
     {
       id: 'contactUs',
       title: 'Contact Us',
-      onPress: () => {
+      onPress: (isOwnerPending || forceDisabled || alwaysDisabled) ? () => {} : () => {
         onClose();
-        router.push('/(main-app)/contact-us');
+        if (user?.type === 'owner') {
+          router.push('/(owner-app)/(main-app)/contact-us');
+        } else {
+          router.push('/(main-app)/contact-us');
+        }
       },
+      disabled: isOwnerPending || forceDisabled || alwaysDisabled,
     },
     {
       id: 'terms',
       title: 'Terms of Services',
-      onPress: () => {
+      onPress: (isOwnerPending || forceDisabled || alwaysDisabled) ? () => {} : () => {
         onClose();
-        router.push('/(main-app)/terms-conditions');
+        if (user?.type === 'owner') {
+          router.push('/(owner-app)/(main-app)/terms-conditions');
+        } else {
+          router.push('/(main-app)/terms-conditions');
+        }
       },
+      disabled: isOwnerPending || forceDisabled || alwaysDisabled,
     },
     {
       id: 'privacy',
       title: 'Privacy Policy',
-      onPress: () => {
+      onPress: (isOwnerPending || forceDisabled || alwaysDisabled) ? () => {} : () => {
         onClose();
-        router.push('/(main-app)/privacy-policy');
+        if (user?.type === 'owner') {
+          router.push('/(owner-app)/(main-app)/privacy-policy');
+        } else {
+          router.push('/(main-app)/privacy-policy');
+        }
       },
+      disabled: isOwnerPending || forceDisabled || alwaysDisabled,
     },
   ];
 
@@ -322,6 +447,7 @@ export function SidebarMenu({ isVisible, onClose, profileInfo, onEditProfile }: 
                 icon={item.icon}
                 onPress={item.onPress}
                 rightComponent={item.rightComponent}
+                disabled={item.disabled}
               />
             ))}
           </View>
@@ -334,6 +460,7 @@ export function SidebarMenu({ isVisible, onClose, profileInfo, onEditProfile }: 
                 icon={item.icon}
                 onPress={item.onPress}
                 rightComponent={item.rightComponent}
+                disabled={item.disabled}
               />
             ))}
           </View>
@@ -421,6 +548,9 @@ const styles = StyleSheet.create({
   switch: {
     transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }],
     height: 25,
+  },
+  disabledSwitch: {
+    opacity: 0.5,
   },
   logoutButton: {
     paddingVertical: 15,

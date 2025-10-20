@@ -5,15 +5,23 @@ import Stripe from 'stripe';
 // Initialize Firebase Admin
 admin.initializeApp();
 
-// Initialize Stripe with secret key from environment variable
-const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+// Initialize Stripe with secret key from Firebase config
+const stripeSecretKey = functions.config().stripe?.secret_key || process.env.STRIPE_SECRET_KEY;
 if (!stripeSecretKey) {
   throw new Error('STRIPE_SECRET_KEY environment variable is not set');
 }
 
 const stripe = new Stripe(stripeSecretKey, {
-  apiVersion: '2025-09-30.clover',
+  apiVersion: '2023-10-16',
 });
+
+// Stripe Connect configuration
+const CONNECT_CONFIG = {
+  platformFeePercentage: 0, // 0% for sandbox testing
+  payoutDelayDays: 7, // 7 days after booking
+  accountType: 'express',
+  requiredCapabilities: ['card_payments', 'transfers'],
+};
 
 // Create Checkout Session
 export const createCheckoutSession = functions.https.onCall(async (data: any, context: any) => {
@@ -23,7 +31,7 @@ export const createCheckoutSession = functions.https.onCall(async (data: any, co
       throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
     }
 
-    const { amount, currency = 'usd', listingId, ownerId, ownerName, bookingData } = data;
+    const { amount, currency = 'usd', listingId, ownerId, ownerName, bookingData, ownerConnectAccountId } = data;
 
     // Validate required fields
     if (!amount || !listingId || !ownerId || !ownerName) {
@@ -42,8 +50,8 @@ export const createCheckoutSession = functions.https.onCall(async (data: any, co
       createdAt: admin.database.ServerValue.TIMESTAMP
     });
 
-    // Create checkout session with minimal metadata
-    const session = await stripe.checkout.sessions.create({
+    // Create checkout session with Connect account
+    const sessionParams: any = {
       payment_method_types: ['card'],
       line_items: [
         {
@@ -67,7 +75,19 @@ export const createCheckoutSession = functions.https.onCall(async (data: any, co
         ownerId,
         renterId: context.auth.uid
       },
-    });
+    };
+
+    // If owner has Connect account, use it for payment destination
+    if (ownerConnectAccountId) {
+      sessionParams.payment_intent_data = {
+        application_fee_amount: Math.round(amount * 100 * CONNECT_CONFIG.platformFeePercentage), // 0% for sandbox
+        transfer_data: {
+          destination: ownerConnectAccountId,
+        },
+      };
+    }
+
+    const session = await stripe.checkout.sessions.create(sessionParams);
 
     return {
       checkoutUrl: session.url,
@@ -396,95 +416,348 @@ export const getPaymentHistory = functions.https.onCall(async (data: any, contex
   }
 });
 
-// Webhook to handle Stripe events (for production)
-export const stripeWebhook = functions.https.onRequest(async (req, res) => {
-  const sig = req.headers['stripe-signature'] as string;
-  const endpointSecret = 'whsec_your_webhook_secret_here'; // Replace with your webhook secret
-
-  let event;
-
+// Periodic status checker for Stripe Connect accounts (for sandbox mode)
+export const checkConnectAccountStatuses = functions.pubsub.schedule('every 5 minutes').onRun(async (context) => {
+  console.log('Running periodic Connect account status check...');
+  
   try {
-    event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
-  } catch (err) {
-    console.log('Webhook signature verification failed:', err);
-    res.status(400).send('Webhook Error');
+    // Get all users with Connect accounts
+    const usersRef = admin.database().ref('users');
+    const usersSnapshot = await usersRef.once('value');
+    const users = usersSnapshot.val();
+    
+    if (!users) {
+      console.log('No users found');
     return;
   }
 
-  // Handle the event
-  switch (event.type) {
-    case 'checkout.session.completed':
-      const session = event.data.object;
-      console.log('Checkout session completed:', session.id);
+    const updatePromises = [];
+    
+    for (const userId in users) {
+      const user = users[userId];
       
-      // Create booking from successful checkout
-      if (session.payment_status === 'paid') {
-        try {
-          const { tempBookingId, listingId, ownerId, renterId } = session.metadata;
-          
-          if (tempBookingId && listingId && ownerId && renterId) {
-            // Retrieve booking data from temp storage
-            const tempBookingRef = admin.database().ref(`tempBookings/${tempBookingId}`);
-            const tempBookingSnapshot = await tempBookingRef.once('value');
-            
-            if (tempBookingSnapshot.exists()) {
-              const tempBookingData = tempBookingSnapshot.val();
-              const { ownerName, renterEmail, ...bookingData } = tempBookingData;
-              
-              // Create booking record
-              const bookingId = admin.database().ref().child('bookings').push().key;
-              const bookingRecord = {
-                id: bookingId,
-                listingId: listingId, // Explicitly ensure listingId is saved
-                ownerId,
-                ownerName,
-                renterId,
-                renterEmail,
-                paymentIntentId: session.payment_intent,
-                amount: session.amount_total / 100, // Convert from cents
-                currency: session.currency,
-                status: 'confirmed',
-                isPaid: true,
-                paymentStatus: 'completed',
-                createdAt: admin.database.ServerValue.TIMESTAMP,
-                bookingDate: admin.database.ServerValue.TIMESTAMP,
-                ...bookingData,
-                mainImage: bookingData.mainImage || bookingData.listingInfo?.mainImage || '',
-                backyardName: bookingData.listingInfo?.title || '',
-                location: bookingData.listingInfo?.location || ''
-              };
-
-              // Save booking to main bookings collection
-              await admin.database().ref(`bookings/${bookingId}`).set(bookingRecord);
-
-              // Save booking to user's bookings
-              await admin.database().ref(`users/${renterId}/bookings/${bookingId}`).set(bookingRecord);
-
-              // Save booking to owner's bookings
-              await admin.database().ref(`users/${ownerId}/ownerBookings/${bookingId}`).set(bookingRecord);
-
-              // Clean up temp booking data
-              await tempBookingRef.remove();
-
-              console.log('Booking created successfully:', bookingId);
-            }
-          }
-        } catch (error) {
-          console.log('Error creating booking from webhook:', error);
-        }
+      // Only check owners with Connect accounts
+      if (user.type === 'owner' && user.stripeConnectAccountId) {
+        const updatePromise = checkAndUpdateAccountStatus(userId, user.stripeConnectAccountId);
+        updatePromises.push(updatePromise);
       }
-      break;
-    case 'payment_intent.succeeded':
-      const paymentIntent = event.data.object;
-      console.log('PaymentIntent succeeded:', paymentIntent.id);
-      break;
-    case 'payment_intent.payment_failed':
-      const failedPayment = event.data.object;
-      console.log('PaymentIntent failed:', failedPayment.id);
-      break;
-    default:
-      console.log(`Unhandled event type ${event.type}`);
+    }
+    
+    await Promise.all(updatePromises);
+    console.log('Completed periodic Connect account status check');
+    
+  } catch (error) {
+    console.log('Error in periodic status check:', error);
   }
+});
 
-  res.json({ received: true });
+// Helper function to check and update individual account status
+async function checkAndUpdateAccountStatus(userId: string, accountId: string) {
+  try {
+    const account = await stripe.accounts.retrieve(accountId);
+    
+    console.log('Periodic check - Stripe account details:', {
+      id: account.id,
+      details_submitted: account.details_submitted,
+      charges_enabled: account.charges_enabled,
+      payouts_enabled: account.payouts_enabled,
+      requirements: account.requirements
+    });
+    
+    // Determine verification status
+    let status = 'not_created';
+    
+    if (!account.details_submitted) {
+      status = 'pending_onboarding';
+    } else if (!account.charges_enabled || !account.payouts_enabled) {
+      status = 'pending_verification';
+    } else {
+      // Check if account has any pending requirements
+      const hasPendingRequirements = account.requirements && (
+        account.requirements.currently_due.length > 0 ||
+        account.requirements.eventually_due.length > 0 ||
+        account.requirements.past_due.length > 0
+      );
+      
+      if (hasPendingRequirements) {
+        status = 'pending_verification';
+      } else {
+        status = 'verified';
+      }
+    }
+    
+    // Update user data if status changed
+    const userRef = admin.database().ref(`users/${userId}`);
+    const currentUserSnapshot = await userRef.once('value');
+    const currentUser = currentUserSnapshot.val();
+    
+    if (currentUser.stripeAccountStatus !== status) {
+      await userRef.update({
+        stripeAccountStatus: status,
+        kycCompleted: account.details_submitted,
+        bankAccountAdded: account.payouts_enabled,
+        verificationStatus: status,
+        onboardingCompleted: status === 'verified',
+        lastStatusCheck: admin.database.ServerValue.TIMESTAMP
+      });
+      
+      console.log(`Updated status for user ${userId}: ${currentUser.stripeAccountStatus} -> ${status}`);
+    }
+    
+  } catch (error) {
+    console.log(`Error checking account status for user ${userId}:`, error);
+  }
+}
+
+// Webhook placeholder (for production when webhooks are available)
+export const stripeWebhook = functions.https.onRequest(async (req, res) => {
+  // This is a placeholder for production webhooks
+  // In sandbox mode, we use the periodic checker above
+  console.log('Webhook called (sandbox mode - using periodic checker instead)');
+  res.json({ received: true, message: 'Using periodic status checker in sandbox mode' });
+});
+
+// Create Stripe Connect Account for Owner
+export const createConnectAccount = functions.https.onCall(async (data: any, context: any) => {
+  try {
+    // Verify user is authenticated
+    if (!context.auth) {
+      throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+    }
+
+    const { email, name } = data;
+    const uid = context.auth.uid;
+
+    // Check if user already has a Connect account
+    const userRef = admin.database().ref(`users/${uid}`);
+    const userSnapshot = await userRef.once('value');
+    const userData = userSnapshot.val();
+
+    if (userData?.stripeConnectAccountId) {
+      // Return existing account
+      const account = await stripe.accounts.retrieve(userData.stripeConnectAccountId);
+      return {
+        success: true,
+        accountId: userData.stripeConnectAccountId,
+        accountLink: null,
+        isExisting: true
+      };
+    }
+
+    // Create new Express account
+    const account = await stripe.accounts.create({
+      type: 'express',
+      country: 'US', // You can make this dynamic based on user location
+      email: email,
+      capabilities: {
+        card_payments: { requested: true },
+        transfers: { requested: true },
+      },
+      business_type: 'individual',
+      metadata: {
+        userId: uid,
+        platform: 'mybackyard'
+      }
+    });
+
+    // Create account link for onboarding
+    const accountLink = await stripe.accountLinks.create({
+      account: account.id,
+      refresh_url: 'https://stripe.com/connect/refresh',
+      return_url: 'https://stripe.com/connect/return',
+      type: 'account_onboarding',
+    });
+
+    // Save account ID to user profile
+    await userRef.update({
+      stripeConnectAccountId: account.id,
+      stripeAccountStatus: 'pending_onboarding',
+      kycCompleted: false,
+      bankAccountAdded: false,
+      verificationStatus: 'pending',
+      onboardingCompleted: false,
+      updatedAt: admin.database.ServerValue.TIMESTAMP
+    });
+
+    return {
+      success: true,
+      accountId: account.id,
+      accountLink: accountLink.url,
+      isExisting: false
+    };
+  } catch (error: any) {
+    console.log('Error creating Connect account:', error);
+    throw new functions.https.HttpsError('internal', error.message || 'Failed to create Connect account');
+  }
+});
+
+// Check Connect Account Status
+export const checkConnectAccountStatus = functions.https.onCall(async (data: any, context: any) => {
+  try {
+    // Verify user is authenticated
+    if (!context.auth) {
+      throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+    }
+
+    const uid = context.auth.uid;
+
+    // Get user data
+    const userRef = admin.database().ref(`users/${uid}`);
+    const userSnapshot = await userRef.once('value');
+    const userData = userSnapshot.val();
+
+    if (!userData?.stripeConnectAccountId) {
+      return {
+        success: true,
+        status: 'not_created',
+        accountId: null,
+        needsOnboarding: true
+      };
+    }
+
+    // Retrieve account from Stripe
+    const account = await stripe.accounts.retrieve(userData.stripeConnectAccountId);
+    
+    // Determine verification status
+    let status = 'not_created';
+    let needsOnboarding = false;
+    
+    console.log('Stripe account details:', {
+      id: account.id,
+      details_submitted: account.details_submitted,
+      charges_enabled: account.charges_enabled,
+      payouts_enabled: account.payouts_enabled,
+      requirements: account.requirements
+    });
+    
+    if (!account.details_submitted) {
+      status = 'pending_onboarding';
+      needsOnboarding = true;
+    } else if (!account.charges_enabled || !account.payouts_enabled) {
+      status = 'pending_verification';
+      needsOnboarding = false;
+    } else {
+      // Check if account has any pending requirements
+      const hasPendingRequirements = account.requirements && (
+        account.requirements.currently_due.length > 0 ||
+        account.requirements.eventually_due.length > 0 ||
+        account.requirements.past_due.length > 0
+      );
+      
+      if (hasPendingRequirements) {
+        status = 'pending_verification';
+        needsOnboarding = false;
+      } else {
+        status = 'verified';
+        needsOnboarding = false;
+      }
+    }
+
+    // Update user data with current status
+    await userRef.update({
+      stripeAccountStatus: status,
+      kycCompleted: account.details_submitted,
+      bankAccountAdded: account.payouts_enabled,
+      verificationStatus: status,
+      onboardingCompleted: status === 'verified',
+      lastStatusCheck: admin.database.ServerValue.TIMESTAMP
+    });
+
+    return {
+      success: true,
+      status,
+      accountId: userData.stripeConnectAccountId,
+      needsOnboarding,
+      account: {
+        id: account.id,
+        charges_enabled: account.charges_enabled,
+        payouts_enabled: account.payouts_enabled,
+        details_submitted: account.details_submitted,
+        requirements: account.requirements
+      }
+    };
+  } catch (error: any) {
+    console.log('Error checking Connect account status:', error);
+    throw new functions.https.HttpsError('internal', error.message || 'Failed to check account status');
+  }
+});
+
+// Create Account Link for Onboarding
+export const createAccountLink = functions.https.onCall(async (data: any, context: any) => {
+  try {
+    // Verify user is authenticated
+    if (!context.auth) {
+      throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+    }
+
+    const uid = context.auth.uid;
+
+    // Get user's Connect account ID
+    const userRef = admin.database().ref(`users/${uid}`);
+    const userSnapshot = await userRef.once('value');
+    const userData = userSnapshot.val();
+
+    if (!userData?.stripeConnectAccountId) {
+      throw new functions.https.HttpsError('failed-precondition', 'No Connect account found');
+    }
+
+    // Create account link
+    const accountLink = await stripe.accountLinks.create({
+      account: userData.stripeConnectAccountId,
+      refresh_url: 'https://stripe.com/connect/refresh',
+      return_url: 'https://stripe.com/connect/return',
+      type: 'account_onboarding',
+    });
+
+    return {
+      success: true,
+      accountLink: accountLink.url
+    };
+  } catch (error: any) {
+    console.log('Error creating account link:', error);
+    throw new functions.https.HttpsError('internal', error.message || 'Failed to create account link');
+  }
+});
+
+// Manual status refresh (for immediate updates)
+export const refreshConnectAccountStatus = functions.https.onCall(async (data: any, context: any) => {
+  try {
+    // Verify user is authenticated
+    if (!context.auth) {
+      throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+    }
+
+    const uid = context.auth.uid;
+
+    // Get user's Connect account ID
+    const userRef = admin.database().ref(`users/${uid}`);
+    const userSnapshot = await userRef.once('value');
+    const userData = userSnapshot.val();
+
+    if (!userData?.stripeConnectAccountId) {
+      return {
+        success: true,
+        status: 'not_created',
+        accountId: null,
+        needsOnboarding: true
+      };
+    }
+
+    // Check account status directly
+    await checkAndUpdateAccountStatus(uid, userData.stripeConnectAccountId);
+
+    // Get updated status
+    const updatedSnapshot = await userRef.once('value');
+    const updatedData = updatedSnapshot.val();
+
+    return {
+      success: true,
+      status: updatedData.stripeAccountStatus,
+      accountId: updatedData.stripeConnectAccountId,
+      needsOnboarding: updatedData.stripeAccountStatus === 'not_created' || updatedData.stripeAccountStatus === 'pending_onboarding'
+    };
+  } catch (error: any) {
+    console.log('Error refreshing account status:', error);
+    throw new functions.https.HttpsError('internal', error.message || 'Failed to refresh account status');
+  }
 });

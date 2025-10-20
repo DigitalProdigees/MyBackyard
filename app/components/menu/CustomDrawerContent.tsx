@@ -11,6 +11,8 @@ import { UnreadBanner } from '../UnreadBanner';
 import { capitalizeFirstLetter } from '../../lib/utils/textUtils';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ToggleSwitch from 'toggle-switch-react-native';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { useFocusEffect } from '@react-navigation/native';
 
 const { width } = Dimensions.get('window');
 
@@ -21,6 +23,10 @@ export default function CustomDrawerContent(props: DrawerContentComponentProps) 
   const [locationText, setLocationText] = useState<string>('');
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState<number>(0);
+  const [stripeStatus, setStripeStatus] = useState({
+    status: 'not_created',
+    isChecking: false
+  });
 
   // Load profile data from Firebase
   useEffect(() => {
@@ -117,14 +123,148 @@ export default function CustomDrawerContent(props: DrawerContentComponentProps) 
     };
   }, []);
 
+  // Check Stripe Connect status for owners
+  useEffect(() => {
+    const checkStripeStatus = async () => {
+      console.log('CustomDrawerContent: Checking Stripe status', { 
+        userId: user?.id, 
+        userType: user?.type,
+        isOwner: user?.type === 'owner'
+      });
+
+      if (!user?.id || user?.type !== 'owner') {
+        console.log('CustomDrawerContent: Not checking Stripe status - not owner');
+        return;
+      }
+      
+      setStripeStatus(prev => ({ ...prev, isChecking: true }));
+      
+      try {
+        const functions = getFunctions();
+        const checkStatus = httpsCallable(functions, 'checkConnectAccountStatus');
+        
+        const result = await checkStatus({ userId: user.id });
+        const data = result.data as any;
+        
+        console.log('CustomDrawerContent: Stripe status result', data);
+        
+        if (data.success) {
+          setStripeStatus({
+            status: data.status,
+            isChecking: false
+          });
+          console.log('CustomDrawerContent: Stripe status updated', data.status);
+        }
+      } catch (error) {
+        console.log('Error checking Stripe status in drawer:', error);
+        setStripeStatus(prev => ({ ...prev, isChecking: false }));
+      }
+    };
+
+    checkStripeStatus();
+  }, [user?.id, user?.type]);
+
+  
+
+  // Add periodic refresh for Stripe status (every 30 seconds)
+  useEffect(() => {
+    if (!user?.id || user?.type !== 'owner') return;
+
+    const interval = setInterval(async () => {
+      console.log('CustomDrawerContent: Periodic Stripe status check');
+      try {
+        const functions = getFunctions();
+        const checkStatus = httpsCallable(functions, 'checkConnectAccountStatus');
+        
+        const result = await checkStatus({ userId: user.id });
+        const data = result.data as any;
+        
+        if (data.success) {
+          setStripeStatus(prev => {
+            if (prev.status !== data.status) {
+              console.log('CustomDrawerContent: Stripe status changed from', prev.status, 'to', data.status);
+              return {
+                status: data.status,
+                isChecking: false
+              };
+            }
+            return prev;
+          });
+        }
+      } catch (error) {
+        console.log('Error in periodic Stripe status check:', error);
+      }
+    }, 30000); // Check every 30 seconds
+
+    return () => clearInterval(interval);
+  }, [user?.id, user?.type]);
+
+  // Refresh Stripe status when drawer is focused/opened
+  useFocusEffect(
+    React.useCallback(() => {
+      if (user?.id && user?.type === 'owner') {
+        console.log('CustomDrawerContent: Drawer focused, refreshing Stripe status');
+        handleRefreshStripeStatus();
+      }
+    }, [user?.id, user?.type])
+  );
+
   const getUserInitials = () => {
     const name = displayName || user?.name || user?.email || 'User';
     return name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
+  // Determine if user is owner and get appropriate routes
+  const isOwner = user?.type === 'owner';
+  const baseRoute = isOwner ? '/(owner-app)/(main-app)' : '/(main-app)';
+  
+  // Check verification status for owners
+  const isVerified = stripeStatus.status === 'verified';
+  const isOwnerVerified = !isOwner || isVerified;
+  const isOwnerPending = isOwner && !isVerified;
+
+  // Debug logging
+  console.log('CustomDrawerContent: Verification status debug', {
+    userType: user?.type,
+    isOwner,
+    stripeStatus: stripeStatus.status,
+    isVerified,
+    isOwnerVerified,
+    isOwnerPending,
+    isChecking: stripeStatus.isChecking
+  });
+
   const handleEditProfile = () => {
     props.navigation.closeDrawer();
-    router.push({ pathname: '/(main-app)/profile', params: { mode: 'edit' } });
+    router.push({ pathname: `${baseRoute}/profile`, params: { mode: 'edit' } });
+  };
+
+  const handleRefreshStripeStatus = async () => {
+    if (!user?.id || user?.type !== 'owner') return;
+    
+    console.log('CustomDrawerContent: Manual refresh of Stripe status');
+    setStripeStatus(prev => ({ ...prev, isChecking: true }));
+    
+    try {
+      const functions = getFunctions();
+      const checkStatus = httpsCallable(functions, 'checkConnectAccountStatus');
+      
+      const result = await checkStatus({ userId: user.id });
+      const data = result.data as any;
+      
+      console.log('CustomDrawerContent: Manual refresh result', data);
+      
+      if (data.success) {
+        setStripeStatus({
+          status: data.status,
+          isChecking: false
+        });
+        console.log('CustomDrawerContent: Manual refresh - status updated to', data.status);
+      }
+    } catch (error) {
+      console.log('Error in manual Stripe status refresh:', error);
+      setStripeStatus(prev => ({ ...prev, isChecking: false }));
+    }
   };
 
   const handleLogout = () => {
@@ -200,86 +340,133 @@ export default function CustomDrawerContent(props: DrawerContentComponentProps) 
             {capitalizeFirstLetter(displayName || user?.name || user?.email || 'User')}
           </Text>
           <Text style={styles.userLocation}>{locationText || 'Update your location'}</Text>
-          <TouchableOpacity style={styles.editProfileButton} onPress={handleEditProfile}>
-            <Text style={styles.editProfileText}>Edit Profile</Text>
+          <TouchableOpacity 
+            style={[styles.editProfileButton, isOwnerPending && styles.disabledEditProfileButton]} 
+            onPress={isOwnerPending ? () => {} : handleEditProfile}
+            disabled={isOwnerPending}
+          >
+            <Text style={[styles.editProfileText, isOwnerPending && styles.disabledEditProfileText]}>Edit Profile</Text>
           </TouchableOpacity>
         </View>
       </View>
 
+      {/* Verification Status Banner for Owners */}
+      {isOwnerPending && (
+        <View style={styles.verificationBanner}>
+          <Text style={styles.verificationBannerText}>
+            Complete KYC to access all features
+          </Text>
+          <Text style={styles.debugText}>
+            Status: {stripeStatus.status} | Checking: {stripeStatus.isChecking ? 'Yes' : 'No'}
+          </Text>
+          {/* Refresh moved to Owner Home screen */}
+        </View>
+      )}
+
       {/* Menu Items */}
       <ScrollView style={styles.menuContainer} showsVerticalScrollIndicator={false}>
         <TouchableOpacity
-          style={styles.menuItem}
-          onPress={() => handleNavigation('/(main-app)/home')}
+          style={[styles.menuItem, isOwnerPending && styles.disabledMenuItem]}
+          onPress={isOwnerPending ? () => {} : () => handleNavigation(`${baseRoute}/home`)}
+          disabled={isOwnerPending}
         >
-          <Text style={styles.menuText}>Home</Text>
+          <Text style={[styles.menuText, isOwnerPending && styles.disabledMenuText]}>Home</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.menuItem}
-          onPress={() => handleNavigation('/(main-app)/my-bookings')}
-        >
-          <Text style={styles.menuText}>My Bookings</Text>
-        </TouchableOpacity>
+        {/* Show different menu items based on user type */}
+        {isOwner ? (
+          <>
+            <TouchableOpacity
+              style={[styles.menuItem, isOwnerPending && styles.disabledMenuItem]}
+              onPress={isOwnerPending ? () => {} : () => handleNavigation(`${baseRoute}/my-listings`)}
+              disabled={isOwnerPending}
+            >
+              <Text style={[styles.menuText, isOwnerPending && styles.disabledMenuText]}>My Listings</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.menuItem, isOwnerPending && styles.disabledMenuItem]}
+              onPress={isOwnerPending ? () => {} : () => handleNavigation(`${baseRoute}/my-orders`)}
+              disabled={isOwnerPending}
+            >
+              <Text style={[styles.menuText, isOwnerPending && styles.disabledMenuText]}>My Orders</Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <TouchableOpacity
+            style={[styles.menuItem, isOwnerPending && styles.disabledMenuItem]}
+            onPress={isOwnerPending ? () => {} : () => handleNavigation(`${baseRoute}/my-bookings`)}
+            disabled={isOwnerPending}
+          >
+            <Text style={[styles.menuText, isOwnerPending && styles.disabledMenuText]}>My Bookings</Text>
+          </TouchableOpacity>
+        )}
 
         <TouchableOpacity
-          style={styles.menuItem}
-          onPress={() => handleNavigation('/(main-app)/messaging')}
+          style={[styles.menuItem, isOwnerPending && styles.disabledMenuItem]}
+          onPress={isOwnerPending ? () => {} : () => handleNavigation(`${baseRoute}/messaging`)}
+          disabled={isOwnerPending}
         >
           <View style={styles.menuItemWithBanner}>
-            <Text style={styles.menuText}>Messaging</Text>
-            {unreadCount > 0 && (
+            <Text style={[styles.menuText, isOwnerPending && styles.disabledMenuText]}>Messaging</Text>
+            {unreadCount > 0 && !isOwnerPending && (
               <UnreadBanner count={unreadCount} size="small" position="top-right" />
             )}
           </View>
         </TouchableOpacity>
 
-        <View style={styles.menuItem}>
-          <Text style={styles.menuText}>Notifications</Text>
+        <View style={[styles.menuItem, isOwnerPending && styles.disabledMenuItem]}>
+          <Text style={[styles.menuText, isOwnerPending && styles.disabledMenuText]}>Notifications</Text>
           <ToggleSwitch
             isOn={notificationsEnabled}
             onColor="#BADA8B"
             offColor="#757575"
             size="small"
-            onToggle={setNotificationsEnabled}
+            onToggle={isOwnerPending ? () => {} : setNotificationsEnabled}
             thumbOnStyle={styles.thumbOn}
             thumbOffStyle={styles.thumbOff}
+            disabled={isOwnerPending}
           />
         </View>
 
         <TouchableOpacity
-          style={styles.menuItem}
-          onPress={() => handleNavigation('/(main-app)/change-pass')}
+          style={[styles.menuItem, isOwnerPending && styles.disabledMenuItem]}
+          onPress={isOwnerPending ? () => {} : () => handleNavigation(`${baseRoute}/change-pass`)}
+          disabled={isOwnerPending}
         >
-          <Text style={styles.menuText}>Change Password</Text>
+          <Text style={[styles.menuText, isOwnerPending && styles.disabledMenuText]}>Change Password</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.menuItem}
-          onPress={() => handleNavigation('/(main-app)/reset-pass')}
+          style={[styles.menuItem, isOwnerPending && styles.disabledMenuItem]}
+          onPress={isOwnerPending ? () => {} : () => handleNavigation(`${baseRoute}/reset-pass`)}
+          disabled={isOwnerPending}
         >
-          <Text style={styles.menuText}>Reset Password</Text>
+          <Text style={[styles.menuText, isOwnerPending && styles.disabledMenuText]}>Reset Password</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.menuItem}
-          onPress={() => handleNavigation('/(main-app)/contact-us')}
+          style={[styles.menuItem, isOwnerPending && styles.disabledMenuItem]}
+          onPress={isOwnerPending ? () => {} : () => handleNavigation(`${baseRoute}/contact-us`)}
+          disabled={isOwnerPending}
         >
-          <Text style={styles.menuText}>Contact Us</Text>
+          <Text style={[styles.menuText, isOwnerPending && styles.disabledMenuText]}>Contact Us</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.menuItem}
-          onPress={() => handleNavigation('/(main-app)/terms-conditions')}
+          style={[styles.menuItem, isOwnerPending && styles.disabledMenuItem]}
+          onPress={isOwnerPending ? () => {} : () => handleNavigation(`${baseRoute}/terms-conditions`)}
+          disabled={isOwnerPending}
         >
-          <Text style={styles.menuText}>Terms of Services</Text>
+          <Text style={[styles.menuText, isOwnerPending && styles.disabledMenuText]}>Terms of Services</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.menuItem}
-          onPress={() => handleNavigation('/(main-app)/privacy-policy')}
+          style={[styles.menuItem, isOwnerPending && styles.disabledMenuItem]}
+          onPress={isOwnerPending ? () => {} : () => handleNavigation(`${baseRoute}/privacy-policy`)}
+          disabled={isOwnerPending}
         >
-          <Text style={styles.menuText}>Privacy Policy</Text>
+          <Text style={[styles.menuText, isOwnerPending && styles.disabledMenuText]}>Privacy Policy</Text>
         </TouchableOpacity>
       </ScrollView>
 
@@ -410,6 +597,53 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: '500',
+  },
+  disabledMenuItem: {
+    opacity: 0.5,
+  },
+  disabledMenuText: {
+    color: 'rgba(255, 255, 255, 0.5)',
+  },
+  disabledEditProfileButton: {
+    backgroundColor: 'rgba(70, 182, 73, 0.5)',
+  },
+  disabledEditProfileText: {
+    color: 'rgba(255, 255, 255, 0.7)',
+  },
+  verificationBanner: {
+    backgroundColor: '#FF6B6B',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    marginHorizontal: 20,
+    marginBottom: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FF5252',
+  },
+  verificationBannerText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  refreshButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    alignSelf: 'center',
+  },
+  refreshIcon: {
+    width: 22,
+    height: 22,
+    tintColor: 'white',
+  },
+  debugText: {
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: 11,
+    textAlign: 'center',
+    marginBottom: 8,
   },
 });
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Image, ScrollView, Dimensions, StyleSheet, TextInput, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, Image, ScrollView, Dimensions, StyleSheet, TextInput, Alert, ActivityIndicator } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { router, useLocalSearchParams } from 'expo-router';
 
@@ -30,6 +30,7 @@ export default function Profile() {
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const [isImageLoading, setIsImageLoading] = useState(false);
+  
 
   // Check if we're in edit mode from navigation params
   const isEditModeFromParams = params.mode === 'edit';
@@ -395,6 +396,7 @@ export default function Profile() {
     };
   }, [user?.id]);
 
+
   return (
     <View style={styles.container}>
       <StatusBar style="light"
@@ -560,6 +562,7 @@ export default function Profile() {
             </View>
           </View>
         </View>
+
 
       </ScrollView>
       <View style={{

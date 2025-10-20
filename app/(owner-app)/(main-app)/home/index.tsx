@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,10 +8,15 @@ import {
   Image,
   ScrollView,
   Alert,
-  Dimensions
+  Dimensions,
+  Animated,
+  Easing,
+  ActivityIndicator,
+  RefreshControl
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useFocusEffect } from '@react-navigation/native';
+import * as WebBrowser from 'expo-web-browser';
 
 import { LocationButton } from './components/LocationButton';
 import { LocationDropdown } from './components/LocationDropdown';
@@ -29,6 +34,7 @@ import { ref, onValue, off, remove } from 'firebase/database';
 import Success from '@/app/components/dialogs/Success';
 import ChatService from '@/app/lib/services/chatService';
 import { useImageLoadingState } from '@/app/lib/hooks/useImageLoadingState';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 const { width, height } = Dimensions.get('window');
 
 const LOCATIONS = [
@@ -55,6 +61,15 @@ export default function RenterHome() {
   const [screenRefreshKey, setScreenRefreshKey] = useState(0);
 
   const [showSuccess, setShowSuccess] = useState(false);
+
+  // Stripe Connect status
+  const [stripeStatus, setStripeStatus] = useState({
+    status: 'not_created',
+    accountId: null,
+    needsOnboarding: false,
+    isChecking: false,
+    isSettingUp: false
+  });
 
   // Track image loading state
   const { isLoading: isImagesLoading, onImageLoad, onImageError, loadedCount, totalCount } = useImageLoadingState(listings);
@@ -223,6 +238,140 @@ export default function RenterHome() {
 
   // Removed handleProfilePress - Header component now handles menu drawer
 
+  // Check Stripe Connect status
+  const checkStripeStatus = async () => {
+    setStripeStatus(prev => ({ ...prev, isChecking: true }));
+    
+    try {
+      const functions = getFunctions();
+      const checkStatus = httpsCallable(functions, 'checkConnectAccountStatus');
+      
+      const result = await checkStatus({});
+      const data = result.data as any;
+      
+      if (data.success) {
+        setStripeStatus({
+          status: data.status,
+          accountId: data.accountId,
+          needsOnboarding: data.needsOnboarding,
+          isChecking: false,
+          isSettingUp: false
+        });
+      }
+    } catch (error) {
+      console.log('Error checking Stripe status:', error);
+      setStripeStatus(prev => ({ ...prev, isChecking: false }));
+    }
+  };
+
+  // Refresh Stripe Connect status (manual refresh)
+  const refreshStripeStatus = async () => {
+    setStripeStatus(prev => ({ ...prev, isChecking: true }));
+    
+    try {
+      const functions = getFunctions();
+      const refreshStatus = httpsCallable(functions, 'refreshConnectAccountStatus');
+      
+      const result = await refreshStatus({});
+      const data = result.data as any;
+      
+      if (data.success) {
+        setStripeStatus({
+          status: data.status,
+          accountId: data.accountId,
+          needsOnboarding: data.needsOnboarding,
+          isChecking: false,
+          isSettingUp: false
+        });
+      }
+    } catch (error) {
+      console.log('Error refreshing Stripe status:', error);
+      setStripeStatus(prev => ({ ...prev, isChecking: false }));
+    }
+  };
+
+  // Animated refresh icon for status
+  const rotateAnim = useRef(new Animated.Value(0)).current;
+  const rotateLoopRef = useRef<Animated.CompositeAnimation | null>(null);
+  useEffect(() => {
+    if (stripeStatus.isChecking) {
+      try { rotateLoopRef.current?.stop(); } catch {}
+      rotateAnim.setValue(0);
+      const loop = Animated.loop(
+        Animated.timing(rotateAnim, {
+          toValue: 1,
+          duration: 800,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        })
+      );
+      rotateLoopRef.current = loop;
+      loop.start();
+    } else {
+      // Gracefully finish the current rotation cycle before resetting
+      rotateAnim.stopAnimation((val) => {
+        const current = typeof val === 'number' ? val : 0;
+        const progress = current % 1; // 0..1
+        const remaining = (1 - progress);
+        if (remaining > 0 && remaining < 1) {
+          Animated.timing(rotateAnim, {
+            toValue: current + remaining,
+            duration: remaining * 800,
+            easing: Easing.linear,
+            useNativeDriver: true,
+          }).start(() => {
+            try { rotateLoopRef.current?.stop(); } catch {}
+            rotateLoopRef.current = null;
+            rotateAnim.setValue(0);
+          });
+        } else {
+          try { rotateLoopRef.current?.stop(); } catch {}
+          rotateLoopRef.current = null;
+          rotateAnim.setValue(0);
+        }
+      });
+    }
+  }, [stripeStatus.isChecking]);
+  const spin = rotateAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
+
+  // Reopen Stripe onboarding
+  const reopenStripeOnboarding = async () => {
+    setStripeStatus(prev => ({ ...prev, isSettingUp: true }));
+    
+    try {
+      const functions = getFunctions();
+      const createAccountLink = httpsCallable(functions, 'createAccountLink');
+      
+      const result = await createAccountLink({});
+      const data = result.data as any;
+      
+      if (data.success && data.accountLink) {
+        console.log('Reopening Stripe onboarding');
+        
+        // Open Stripe onboarding in browser
+        const result = await WebBrowser.openBrowserAsync(data.accountLink, {
+          presentationStyle: WebBrowser.WebBrowserPresentationStyle.FORM_SHEET,
+        });
+        
+        if (result.type === 'dismiss') {
+          // User completed or cancelled onboarding - refresh status
+          await refreshStripeStatus();
+        }
+      }
+    } catch (error) {
+      console.log('Error reopening Stripe onboarding:', error);
+    } finally {
+      setStripeStatus(prev => ({ ...prev, isSettingUp: false }));
+    }
+  };
+
+  // Check Stripe status on component mount
+  useEffect(() => {
+    if (user?.type === 'owner') {
+      checkStripeStatus();
+    }
+  }, [user?.type]);
+
   const getFirstName = () => {
     const fullName = displayName || (user as any)?.name || '';
     if (fullName) return capitalizeFirstLetter(String(fullName).split(' ')[0]);
@@ -276,115 +425,210 @@ export default function RenterHome() {
         <Text style={styles.welcomeSubtitle}>Welcome.</Text>
       </View>
 
-      {/* Search */}
-      <View style={styles.searchContainer}>
-        <View style={styles.searchInputContainer}>
-          <Image source={require('../../../../assets/icons/icS.png')} style={styles.searchIcon} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search"
-            placeholderTextColor="rgba(255, 255, 255, 0.5)"
-            value={search}
-            onChangeText={(t) => setSearch(t)}
-          />
-        </View>
-        <TouchableOpacity style={styles.filterButton}>
-          <View style={styles.filterButtonInner}>
-            <Image
-              source={require('../../../../assets/icons/icFilter.png')}
-              style={styles.filterButtonIcon}
-            />
-          </View>
-        </TouchableOpacity>
-      </View>
-
-      {/* Cards */}
-      <ScrollView style={styles.cardList} showsVerticalScrollIndicator={false}>
-        {isLoadingListings ? (
-          <LoadingSpinner 
-            visible={true} 
-            text="Loading your listings..." 
-            overlay={false}
-          />
-        ) : (!listings || listings.length === 0) ? (
-          <View style={{ padding: 24, alignItems: 'center' }}>
-            <Text style={{ color: 'rgba(255,255,255,0.75)', fontSize: 16 }}>No active listings</Text>
-          </View>
-        ) : null}
-        {/* Dynamic cards first */}
-        {!isLoadingListings && (() => {
-          const filtered = listings.filter((l: any) => {
-            if (!search.trim()) return true;
-            const q = search.trim().toLowerCase();
-            const tokens = q.split(/\s+/g).filter(Boolean);
-            const title = String(l.title || '').toLowerCase();
-            return tokens.every((w) => title.includes(w));
-          });
-
-          if (listings.length > 0 && search.trim() && filtered.length === 0) {
-            return (
-              <View style={{ padding: 24, alignItems: 'center' }}>
-                <Text style={{ color: 'rgba(255,255,255,0.75)', fontSize: 16 }}>No listings for this name</Text>
+      {/* Conditional UI based on Stripe verification status */}
+      {stripeStatus.status === 'verified' ? (
+        // Full access - verified owner
+        <>
+          {/* Search */}
+          <View style={styles.searchContainer}>
+            <View style={styles.searchInputContainer}>
+              <Image source={require('../../../../assets/icons/icS.png')} style={styles.searchIcon} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search"
+                placeholderTextColor="rgba(255, 255, 255, 0.5)"
+                value={search}
+                onChangeText={(t) => setSearch(t)}
+              />
+            </View>
+            <TouchableOpacity style={styles.filterButton}>
+              <View style={styles.filterButtonInner}>
+                <Image
+                  source={require('../../../../assets/icons/icFilter.png')}
+                  style={styles.filterButtonIcon}
+                />
               </View>
-            );
-          }
+            </TouchableOpacity>
+          </View>
 
-          return filtered.map((l: any) => (
-            <BackyardCard
-              key={l.id}
-              imageSource={(() => {
-                // Handle string URLs (Firebase Storage URLs)
-                if (typeof l.mainImage === 'string' && l.mainImage.length > 0) {
-                  console.log('🏠 Owner Home: Using string URL for listing', l.id, ':', l.mainImage);
-                  return { uri: l.mainImage };
-                }
-                
-                // Handle objects with uri property
-                if (l.mainImage && typeof l.mainImage === 'object' && l.mainImage.uri && typeof l.mainImage.uri === 'string' && l.mainImage.uri.length > 0) {
-                  console.log('🏠 Owner Home: Using object URI for listing', l.id, ':', l.mainImage.uri);
-                  return { uri: l.mainImage.uri };
-                }
-                
-                // Fallback to placeholder
-                console.log('🏠 Owner Home: Using placeholder for listing', l.id, 'mainImage:', l.mainImage);
-                return require('../../../../assets/icons/renter_home_1.png');
-              })()}
-              name={l.title || 'Backyard Name'}
-              location={l.location || `${l.city ?? 'City'}, ${l.country ?? 'Country'}`}
-              distance={l.distance || '1.0 km'}
-              dimensions={l.dimensions || '100m - 200m'}
-              price={l.pricePerHour ? `$${l.pricePerHour}/hour` : '$100/hour'}
-              styles={styles}
-              listingId={l.id}
-              onPress={() => {
-                dispatch(selectListing(l.id));
-                router.push('/(owner-app)/(main-app)/backyard-details');
+          {/* Cards */}
+          <ScrollView style={styles.cardList} showsVerticalScrollIndicator={false}>
+            {isLoadingListings ? (
+              <LoadingSpinner 
+                visible={true} 
+                text="Loading your listings..." 
+                overlay={false}
+              />
+            ) : (!listings || listings.length === 0) ? (
+              <View style={{ padding: 24, alignItems: 'center' }}>
+                <Text style={{ color: 'rgba(255,255,255,0.75)', fontSize: 16 }}>No active listings</Text>
+              </View>
+            ) : null}
+            {/* Dynamic cards first */}
+            {!isLoadingListings && (() => {
+              const filtered = listings.filter((l: any) => {
+                if (!search.trim()) return true;
+                const q = search.trim().toLowerCase();
+                const tokens = q.split(/\s+/g).filter(Boolean);
+                const title = String(l.title || '').toLowerCase();
+                return tokens.every((w) => title.includes(w));
+              });
+
+              if (listings.length > 0 && search.trim() && filtered.length === 0) {
+                return (
+                  <View style={{ padding: 24, alignItems: 'center' }}>
+                    <Text style={{ color: 'rgba(255,255,255,0.75)', fontSize: 16 }}>No listings for this name</Text>
+                  </View>
+                );
+              }
+
+              return filtered.map((l: any) => (
+                <BackyardCard
+                  key={l.id}
+                  imageSource={(() => {
+                    // Handle string URLs (Firebase Storage URLs)
+                    if (typeof l.mainImage === 'string' && l.mainImage.length > 0) {
+                      console.log('🏠 Owner Home: Using string URL for listing', l.id, ':', l.mainImage);
+                      return { uri: l.mainImage };
+                    }
+                    
+                    // Handle objects with uri property
+                    if (l.mainImage && typeof l.mainImage === 'object' && l.mainImage.uri && typeof l.mainImage.uri === 'string' && l.mainImage.uri.length > 0) {
+                      console.log('🏠 Owner Home: Using object URI for listing', l.id, ':', l.mainImage.uri);
+                      return { uri: l.mainImage.uri };
+                    }
+                    
+                    // Fallback to placeholder
+                    console.log('🏠 Owner Home: Using placeholder for listing', l.id, 'mainImage:', l.mainImage);
+                    return require('../../../../assets/icons/renter_home_1.png');
+                  })()}
+                  name={l.title || 'Backyard Name'}
+                  location={l.location || `${l.city ?? 'City'}, ${l.country ?? 'Country'}`}
+                  distance={l.distance || '1.0 km'}
+                  dimensions={l.dimensions || '100m - 200m'}
+                  price={l.pricePerHour ? `$${l.pricePerHour}/hour` : '$100/hour'}
+                  styles={styles}
+                  listingId={l.id}
+                  onPress={() => {
+                    dispatch(selectListing(l.id));
+                    router.push('/(owner-app)/(main-app)/backyard-details');
+                  }}
+                  onDelete={() => handleRemoveCard(l.id)}
+                />
+              ));
+            })()}
+
+            {/* Static default cards removed; now showing only RTDB data */}
+          </ScrollView>
+
+          <TouchableOpacity style={{
+            alignItems: 'flex-end', paddingHorizontal: 16,
+            position: 'absolute',
+            top: '92%',
+            left: '72%'
+          }} activeOpacity={0.5} onPress={() => router.push('../my-listings')}>
+            <Image
+              source={require('../../../../assets/icons/plus.png')}
+              style={{
+                width: 60,
+                height: 60,
+                resizeMode: 'stretch',
               }}
-              onDelete={() => handleRemoveCard(l.id)}
             />
-          ));
-        })()}
+          </TouchableOpacity>
+        </>
+      ) : (
+        // Limited access - pending verification
+        <View style={styles.pendingVerificationContainer}>
+          <View style={styles.pendingIconContainer}>
+            <Image
+              source={require('../../../../assets/images/verify.png')}
+              style={styles.pendingIcon}
+            />
+          </View>
+          
+          <Text style={styles.pendingTitle}>Account Under Review</Text>
+          
+          <Text style={styles.pendingSubtitle}>
+            {stripeStatus.status === 'not_created' 
+              ? 'Please complete your payment setup to start listing your backyard.'
+              : stripeStatus.status === 'pending_onboarding'
+              ? 'Please complete your payment processing setup to continue.'
+              : 'Your account is being reviewed. You\'ll be notified once verification is complete.'
+            }
+          </Text>
+          
+          {stripeStatus.status === 'not_created' && (
+            <View style={styles.buttonContainer}>
+              <TouchableOpacity
+                style={styles.setupButton}
+                onPress={reopenStripeOnboarding}
+                disabled={stripeStatus.isSettingUp}
+              >
+                {stripeStatus.isSettingUp ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.setupButtonText}>Complete Setup</Text>
+                )}
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.refreshButton}
+                onPress={refreshStripeStatus}
+                disabled={stripeStatus.isChecking}
+              >
+                {stripeStatus.isChecking ? (
+                  <ActivityIndicator size="small" color="#1D234B" />
+                ) : (
+                  <Text style={styles.refreshButtonText}>Refresh Status</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
+          
+          {stripeStatus.status === 'pending_onboarding' && (
+            <View style={styles.buttonContainer}>
+              <TouchableOpacity
+                style={styles.setupButton}
+                onPress={reopenStripeOnboarding}
+                disabled={stripeStatus.isSettingUp}
+              >
+                {stripeStatus.isSettingUp ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.setupButtonText}>Complete Payment Setup</Text>
+                )}
+              </TouchableOpacity>
 
-        {/* Static default cards removed; now showing only RTDB data */}
-      </ScrollView>
-
-      <TouchableOpacity style={{
-        alignItems: 'flex-end', paddingHorizontal: 16,
-        position: 'absolute',
-        top: '92%',
-        left: '72%'
-      }} activeOpacity={0.5} onPress={() => router.push('../my-listings')}>
-        <Image
-          source={require('../../../../assets/icons/plus.png')}
-          style={{
-            width: 60,
-            height: 60,
-            resizeMode: 'stretch',
-
-
-          }}
-        />
-      </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.refreshIconButton}
+                onPress={refreshStripeStatus}
+                disabled={stripeStatus.isChecking}
+                accessibilityLabel="Refresh verification status"
+              >
+                <Animated.Image
+                  source={require('../../../../assets/images/refresh1.png')}
+                  style={[styles.refreshIcon, { transform: [{ rotate: spin }] }]}
+                />
+              </TouchableOpacity>
+            </View>
+          )}
+          
+          {stripeStatus.status === 'pending_verification' && (
+            <TouchableOpacity
+              style={styles.refreshIconButton}
+              onPress={refreshStripeStatus}
+              disabled={stripeStatus.isChecking}
+              accessibilityLabel="Refresh verification status"
+            >
+              <Animated.Image
+                source={require('../../../../assets/images/refresh1.png')}
+                style={[styles.refreshIcon, { transform: [{ rotate: spin }] }]}
+              />
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
       {/* ✅ Success Dialog */}
       <Success
         visible={showSuccess}
@@ -672,5 +916,86 @@ const styles = StyleSheet.create({
   headerRightContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  // Pending Verification Styles
+  pendingVerificationContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 40,
+    paddingVertical: 60,
+  },
+  pendingIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  pendingIcon: {
+    width: 80,
+    height: 80,
+    resizeMode: 'contain',
+  },
+  pendingTitle: {
+    color: 'white',
+    fontSize: 24,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  pendingSubtitle: {
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: 16,
+    lineHeight: 24,
+    textAlign: 'center',
+    marginBottom: 32,
+  },
+  setupButton: {
+    backgroundColor: '#A6E66E',
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 25,
+    alignItems: 'center',
+    minWidth: 200,
+  },
+  setupButtonText: {
+    color: '#1D234B',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  refreshButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 25,
+    alignItems: 'center',
+    minWidth: 150,
+  },
+  refreshButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  refreshIconButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 18,
+    borderRadius: 25,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 60,
+  },
+  refreshIcon: {
+    width: 32,
+    height: 32,
+    tintColor: 'white',
+  },
+  buttonContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 16,
+    flexWrap: 'wrap',
   },
 });

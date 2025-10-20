@@ -4,6 +4,9 @@ export const STRIPE_CONFIG = {
   publishableKey: process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || '',
   secretKey: process.env.STRIPE_SECRET_KEY || '',
   
+  // Stripe Connect configuration
+  connectClientId: process.env.EXPO_PUBLIC_STRIPE_CONNECT_CLIENT_ID || '',
+  
   // Currency settings
   currency: 'usd',
   
@@ -59,4 +62,48 @@ export const formatCurrency = (amount: number, currency: string = 'USD') => {
     style: 'currency',
     currency: currency
   }).format(amount);
+};
+
+// Stripe Connect configuration
+export const CONNECT_CONFIG = {
+  // Platform fee (0% for sandbox testing)
+  platformFeePercentage: 0,
+  
+  // Payout delay (7 days after booking)
+  payoutDelayDays: 7,
+  
+  // Connect account types
+  accountType: 'express',
+  
+  // Required capabilities for owners
+  requiredCapabilities: ['card_payments', 'transfers'],
+  
+  // Onboarding return URLs
+  returnUrl: 'mybackyard://owner-onboarding-return',
+  refreshUrl: 'mybackyard://owner-onboarding-refresh',
+};
+
+// Helper function to create Stripe Connect onboarding URL
+export const createConnectOnboardingUrl = (accountId?: string) => {
+  const baseUrl = 'https://connect.stripe.com/setup/c/';
+  const clientId = STRIPE_CONFIG.connectClientId;
+  
+  if (accountId) {
+    return `${baseUrl}${accountId}`;
+  }
+  
+  // For new accounts, we'll create the account first via API
+  return null;
+};
+
+// Helper function to check account verification status
+export const getAccountVerificationStatus = (account: any) => {
+  if (!account) return 'not_created';
+  
+  const { charges_enabled, payouts_enabled, details_submitted } = account;
+  
+  if (!details_submitted) return 'pending_onboarding';
+  if (!charges_enabled || !payouts_enabled) return 'pending_verification';
+  
+  return 'verified';
 };
