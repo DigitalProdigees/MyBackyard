@@ -28,7 +28,7 @@ export default function SignIn() {
   useEffect(() => {
     if (__DEV__) {
       setEmail('tam@gmail.com');
-      setPassword('Profe$$ional78');
+      setPassword('88888888');
       // Uncomment the line below to reset onboarding for testing
       // AsyncStorage.removeItem('onboarded');
     }
