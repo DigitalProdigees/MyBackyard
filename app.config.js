@@ -19,6 +19,7 @@ export default {
     ios: {
       supportsTablet: true,
       bundleIdentifier: 'com.mybackyard.app',
+      associatedDomains: ['applinks:mybackyard-ios.com'],
     },
     android: {
       adaptiveIcon: {
@@ -26,6 +27,18 @@ export default {
         backgroundColor: '#ffffff',
       },
       package: 'com.mybackyard.app',
+      intentFilters: [
+        {
+          action: 'VIEW',
+          autoVerify: true,
+          data: [
+            {
+              scheme: 'mybackyard-android',
+            },
+          ],
+          category: ['BROWSABLE', 'DEFAULT'],
+        },
+      ],
     },
     web: {
       bundler: 'metro',

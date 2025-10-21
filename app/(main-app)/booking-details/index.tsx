@@ -717,8 +717,9 @@ export default function BookingDetails() {
     console.log('Processing payment...');
     setIsNavigating(true);
     
-    // Navigate to payment processing screen with booking data
-    // The booking will be saved in the payment processing screen after successful payment
+    // Navigate to main payment processing screen
+    console.log('Navigating to payment processing screen');
+    
     router.push({
       pathname: '/(main-app)/payment-processing',
       params: {
