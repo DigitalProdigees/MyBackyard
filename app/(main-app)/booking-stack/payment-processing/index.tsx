@@ -432,7 +432,7 @@ export default function PaymentProcessing() {
       <GradientBackground />
 
       {/* Payment Processing UI */}
-        <View style={styles.contentContainer}>
+      <View style={styles.contentContainer}>
           <View style={styles.iconContainer}>
             {isProcessing ? (
               <ActivityIndicator size="large" color="#A6E66E" />
@@ -487,7 +487,6 @@ export default function PaymentProcessing() {
             </View>
           )}
         </View>
-      )}
 
       {/* Show processing when returning from Stripe */}
       {isReturningFromStripe && (
