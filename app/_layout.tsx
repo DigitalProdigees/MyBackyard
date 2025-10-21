@@ -126,19 +126,6 @@ function RootLayoutContent() {
         const url = eventUrl ?? (await RNLinking.Linking.getInitialURL());
         if (!url) return;
         
-        // Handle payment-success redirects to payment-processing
-        if (url.includes('payment-success')) {
-          console.log('Redirecting payment-success to payment-processing:', url);
-          const urlParams = new URLSearchParams(url.split('?')[1]);
-          const sessionId = urlParams.get('session_id');
-          if (sessionId) {
-            router.replace({
-              pathname: '/(main-app)/payment-processing',
-              params: { session_id: sessionId }
-            });
-            return;
-          }
-        }
         
         // Firebase dynamic link format: https://<domain>/?link=https%3A%2F%2F<auth-domain>%2F__%2Fauth%2Faction%3Fmode%3DresetPassword%26oobCode%3DXXXX&...
         const outer = new URL(url);

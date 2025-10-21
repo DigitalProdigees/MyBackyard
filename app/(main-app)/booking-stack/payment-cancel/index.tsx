@@ -1,8 +1,8 @@
 import React from 'react';
 import { View, Text, Image, TouchableOpacity } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { GradientBackground } from '../../components/GradientBackground';
-import { Icons } from '../../../constants/icons';
+import { GradientBackground } from '../../../components/GradientBackground';
+import { Icons } from '../../../../constants/icons';
 import { StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 

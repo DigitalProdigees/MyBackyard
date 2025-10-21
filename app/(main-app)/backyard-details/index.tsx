@@ -271,7 +271,7 @@ export default function BackyardDetails() {
     console.log('Booking pressed');
     // Navigate to booking screen with listing ID
     router.push({
-      pathname: '/(main-app)/booking-details',
+      pathname: '/(main-app)/booking-stack/booking-details',
       params: {
         listingId: selected?.id
       }

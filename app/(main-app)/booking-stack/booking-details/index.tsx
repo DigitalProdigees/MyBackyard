@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { View, Text, ScrollView, Image, TextInput, TouchableOpacity, Dimensions, Modal, Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
-import { GradientBackground } from '../../components/GradientBackground';
-import { Header } from '../../components/Header';
-import GradientButton from '../../components/buttons/GradientButton';
-import { Icons } from '../../../constants/icons';
+import { router, useLocalSearchParams } from 'expo-router';
+import { GradientBackground } from '../../../components/GradientBackground';
+import { Header } from '../../../components/Header';
+import GradientButton from '../../../components/buttons/GradientButton';
+import { Icons } from '../../../../constants/icons';
 import { StyleSheet } from 'react-native';
 import { auth, rtdb } from '@/app/lib/firebase';
 import { ref, get, set, push } from 'firebase/database';
@@ -237,26 +237,24 @@ export default function BookingDetails() {
     fetchUserName();
   }, []);
 
-  // Reset form data when screen comes into focus (proper solution for drawer navigator)
-  useFocusEffect(
-    React.useCallback(() => {
-      console.log('Booking details: Screen focused, resetting form data');
-      // Force reset all form fields
-      setGuests('1');
-      setHours('5');
-      setSelectedDate(new Date());
-      setStartTime('');
-      setEndTime('');
-      setTimeError('');
-      setIsTimeValid(true);
-      setDateError('');
-      setIsDateValid(true);
-      setAvailableSlots([]);
-      setShowAvailableSlots(false);
-      setHasEncounteredConflict(false);
-      setIsNavigating(false);
-    }, [])
-  );
+  // Reset form data when component mounts (stack navigator will properly unmount/remount)
+  React.useEffect(() => {
+    console.log('Booking details: Component mounted, resetting form data');
+    // Force reset all form fields
+    setGuests('1');
+    setHours('5');
+    setSelectedDate(new Date());
+    setStartTime('');
+    setEndTime('');
+    setTimeError('');
+    setIsTimeValid(true);
+    setDateError('');
+    setIsDateValid(true);
+    setAvailableSlots([]);
+    setShowAvailableSlots(false);
+    setHasEncounteredConflict(false);
+    setIsNavigating(false);
+  }, []);
 
   // Additional cleanup on unmount to ensure clean state
   React.useEffect(() => {
@@ -797,7 +795,7 @@ export default function BookingDetails() {
     console.log('Navigating to payment processing screen');
     
     router.push({
-      pathname: '/(main-app)/payment-processing',
+      pathname: '/(main-app)/booking-stack/payment-processing',
       params: {
         listingId: listingId,
         fullName: fullName,
@@ -844,7 +842,7 @@ export default function BookingDetails() {
         customRightComponent={
           <TouchableOpacity onPress={() => router.push('/(main-app)/notification-centre')}>
             <Image
-              source={require('../../../assets/icons/icBELL.png')}
+              source={require('../../../../assets/icons/icBELL.png')}
               style={styles.headerBellIcon}
             />
           </TouchableOpacity>
@@ -899,11 +897,11 @@ export default function BookingDetails() {
             style={styles.inputContainer} 
             onPress={() => setShowDatePicker(true)}
           >
-            <Image source={require('../../../assets/icons/calendar.png')} style={styles.inputIcon} />
+            <Image source={require('../../../../assets/icons/calendar.png')} style={styles.inputIcon} />
             <Text style={styles.inputText} numberOfLines={1}>
               {selectedDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
             </Text>
-            <Image source={require('../../../assets/icons/down.png')} style={styles.dropdownArrow} />
+            <Image source={require('../../../../assets/icons/down.png')} style={styles.dropdownArrow} />
           </TouchableOpacity>
 
           {/* Time Selection */}
@@ -915,11 +913,11 @@ export default function BookingDetails() {
                 style={styles.inputContainer} 
                 onPress={() => handleOpenTimePicker('start')}
               >
-                <Image source={require('../../../assets/icons/clock.png')} style={styles.inputIcon} />
+                <Image source={require('../../../../assets/icons/clock.png')} style={styles.inputIcon} />
                 <Text style={styles.inputText} numberOfLines={1}>
                   {formatTimeDisplay(startTime)}
                 </Text>
-                <Image source={require('../../../assets/icons/down.png')} style={styles.dropdownArrow} />
+                <Image source={require('../../../../assets/icons/down.png')} style={styles.dropdownArrow} />
               </TouchableOpacity>
             </View>
 
@@ -930,11 +928,11 @@ export default function BookingDetails() {
                 onPress={() => handleOpenTimePicker('end')}
                 disabled={!startTime}
               >
-                <Image source={require('../../../assets/icons/clock.png')} style={styles.inputIcon} />
+                <Image source={require('../../../../assets/icons/clock.png')} style={styles.inputIcon} />
                 <Text style={styles.inputText} numberOfLines={1}>
                   {formatTimeDisplay(endTime)}
                 </Text>
-                <Image source={require('../../../assets/icons/down.png')} style={styles.dropdownArrow} />
+                <Image source={require('../../../../assets/icons/down.png')} style={styles.dropdownArrow} />
               </TouchableOpacity>
             </View>
           </View>
@@ -943,7 +941,7 @@ export default function BookingDetails() {
           {showAvailableSlots && (
             <View style={styles.availableSlotsCard}>
               <View style={styles.availableSlotsHeader}>
-                <Image source={require('../../../assets/icons/clock.png')} style={styles.availableSlotsIcon} />
+                <Image source={require('../../../../assets/icons/clock.png')} style={styles.availableSlotsIcon} />
                 <Text style={styles.availableSlotsTitle}>Available Time Slots</Text>
               </View>
               <View style={styles.slotsContainer}>

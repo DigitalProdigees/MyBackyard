@@ -52,7 +52,7 @@ export default function RenterLayout() {
           }}
         />
         <Drawer.Screen
-          name="booking-details/index"
+          name="booking-stack"
           options={{
             drawerItemStyle: { display: 'none' },
           }}
@@ -89,24 +89,6 @@ export default function RenterLayout() {
         />
         <Drawer.Screen
           name="privacy-policy/index"
-          options={{
-            drawerItemStyle: { display: 'none' },
-          }}
-        />
-        <Drawer.Screen
-          name="payment-processing/index"
-          options={{
-            drawerItemStyle: { display: 'none' },
-          }}
-        />
-        <Drawer.Screen
-          name="payment-success/index"
-          options={{
-            drawerItemStyle: { display: 'none' },
-          }}
-        />
-        <Drawer.Screen
-          name="payment-cancel/index"
           options={{
             drawerItemStyle: { display: 'none' },
           }}
