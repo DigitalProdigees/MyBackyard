@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, Dimensions, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, Dimensions, Alert, ActivityIndicator } from 'react-native';
 import { DrawerContentComponentProps } from '@react-navigation/drawer';
 import { router } from 'expo-router';
 import { GradientBackground } from '../GradientBackground';
@@ -27,6 +27,7 @@ export default function CustomDrawerContent(props: DrawerContentComponentProps) 
     status: 'not_created',
     isChecking: false
   });
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   // Load profile data from Firebase
   useEffect(() => {
@@ -278,7 +279,8 @@ export default function CustomDrawerContent(props: DrawerContentComponentProps) 
           style: 'destructive',
           onPress: async () => {
             try {
-              props.navigation.closeDrawer();
+              setIsLoggingOut(true);
+              // Don't close drawer immediately - keep it open to show loader
               
               // Set user offline BEFORE signing out
               const ChatService = (await import('../../lib/services/chatService')).default;
@@ -305,7 +307,11 @@ export default function CustomDrawerContent(props: DrawerContentComponentProps) 
               const { signOut } = await import('firebase/auth');
               const { auth } = await import('../../lib/firebase');
               await signOut(auth);
+              
+              // Close drawer after logout is complete
+              props.navigation.closeDrawer();
             } catch (error) {
+              setIsLoggingOut(false);
               Alert.alert('Error', 'Failed to logout');
             }
           }
@@ -378,7 +384,7 @@ export default function CustomDrawerContent(props: DrawerContentComponentProps) 
           <>
             <TouchableOpacity
               style={[styles.menuItem, isOwnerPending && styles.disabledMenuItem]}
-              onPress={isOwnerPending ? () => {} : () => handleNavigation(`${baseRoute}/my-listings`)}
+              onPress={isOwnerPending ? () => {} : () => handleNavigation(`${baseRoute}/home`)}
               disabled={isOwnerPending}
             >
               <Text style={[styles.menuText, isOwnerPending && styles.disabledMenuText]}>My Listings</Text>
@@ -391,6 +397,14 @@ export default function CustomDrawerContent(props: DrawerContentComponentProps) 
             >
               <Text style={[styles.menuText, isOwnerPending && styles.disabledMenuText]}>My Orders</Text>
             </TouchableOpacity>
+
+            {/* <TouchableOpacity
+              style={[styles.menuItem, isOwnerPending && styles.disabledMenuItem]}
+              onPress={isOwnerPending ? () => {} : () => handleNavigation(`${baseRoute}/my-earnings`)}
+              disabled={isOwnerPending}
+            >
+              <Text style={[styles.menuText, isOwnerPending && styles.disabledMenuText]}>My Earnings</Text>
+            </TouchableOpacity> */}
           </>
         ) : (
           <TouchableOpacity
@@ -471,13 +485,37 @@ export default function CustomDrawerContent(props: DrawerContentComponentProps) 
       </ScrollView>
 
       {/* Logout Button */}
-      <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-        <Image
-          source={require('../../../assets/icons/icLogout.png')}
-          style={styles.logoutIcon}
-        />
-        <Text style={styles.logoutText}>Logout</Text>
+      <TouchableOpacity 
+        style={[styles.logoutButton, isLoggingOut && styles.logoutButtonDisabled]} 
+        onPress={handleLogout}
+        disabled={isLoggingOut}
+      >
+        {isLoggingOut ? (
+          <>
+            <ActivityIndicator size="small" color="#FFFFFF" />
+            <Text style={styles.logoutText}>Logging out...</Text>
+          </>
+        ) : (
+          <>
+            <Image
+              source={require('../../../assets/icons/icLogout.png')}
+              style={styles.logoutIcon}
+              resizeMode='contain'
+            />
+            <Text style={styles.logoutText}>Logout</Text>
+          </>
+        )}
       </TouchableOpacity>
+
+      {/* Logout Loading Overlay */}
+      {isLoggingOut && (
+        <View style={styles.logoutOverlay}>
+          <View style={styles.logoutLoaderContainer}>
+            <ActivityIndicator size="large" color="#A6E66E" />
+            <Text style={styles.logoutLoaderText}>Logging out...</Text>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -587,6 +625,9 @@ const styles = StyleSheet.create({
     marginTop: 10,
     marginBottom: 20,
   },
+  logoutButtonDisabled: {
+    opacity: 0.6,
+  },
   logoutIcon: {
     width: 20,
     height: 20,
@@ -644,6 +685,30 @@ const styles = StyleSheet.create({
     fontSize: 11,
     textAlign: 'center',
     marginBottom: 8,
+  },
+  // Logout Overlay Styles
+  logoutOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  logoutLoaderContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  logoutLoaderText: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: '500',
+    marginTop: 16,
+    textAlign: 'center',
   },
 });
 
