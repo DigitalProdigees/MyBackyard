@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, Switch, ScrollView, Dimensions, TouchableOpacity, TouchableWithoutFeedback, Text } from 'react-native';
+import { View, StyleSheet, Switch, ScrollView, Dimensions, TouchableOpacity, TouchableWithoutFeedback, Text, ActivityIndicator } from 'react-native';
 import { MenuItem } from './MenuItem';
 import { ProfileSection } from './ProfileSection';
 import { Icons } from '../../../constants/icons';
@@ -52,6 +52,7 @@ export function SidebarMenu({ isVisible, onClose, profileInfo, onEditProfile }: 
     status: 'not_created',
     isChecking: false
   });
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const { user } = useAuth();
 
   // Load profile data from Firebase
@@ -218,7 +219,8 @@ export function SidebarMenu({ isVisible, onClose, profileInfo, onEditProfile }: 
 
   const handleLogoutConfirm = async () => {
     setShowLogoutAlert(false);
-    onClose(); // Close the menu first
+    setIsLoggingOut(true);
+    // Don't close menu immediately - keep it open to show loader
 
     try {
       // Set user offline BEFORE signing out to avoid permission errors
@@ -249,8 +251,12 @@ export function SidebarMenu({ isVisible, onClose, profileInfo, onEditProfile }: 
       const { signOut } = await import('firebase/auth');
       const { auth } = await import('../../lib/firebase');
       await signOut(auth);
+      
+      // Close menu after logout is complete
+      onClose();
     } catch (error) {
       console.log('Logout error:', error);
+      setIsLoggingOut(false);
     }
   };
 
@@ -467,10 +473,18 @@ export function SidebarMenu({ isVisible, onClose, profileInfo, onEditProfile }: 
 
           {/* Logout button fixed at bottom */}
           <TouchableOpacity
-            style={styles.logoutButton}
+            style={[styles.logoutButton, isLoggingOut && styles.logoutButtonDisabled]}
             onPress={handleLogoutPress}
+            disabled={isLoggingOut}
           >
-            <Text style={styles.logoutText}>Logout</Text>
+            {isLoggingOut ? (
+              <>
+                <ActivityIndicator size="small" color="#FFFFFF" />
+                <Text style={styles.logoutText}>Logging out...</Text>
+              </>
+            ) : (
+              <Text style={styles.logoutText}>Logout</Text>
+            )}
           </TouchableOpacity>
         </View>
 
@@ -478,6 +492,16 @@ export function SidebarMenu({ isVisible, onClose, profileInfo, onEditProfile }: 
         <TouchableOpacity style={styles.closeHandle} onPress={onClose}>
           <View style={styles.handleBar} />
         </TouchableOpacity>
+
+        {/* Logout Loading Overlay */}
+        {isLoggingOut && (
+          <View style={styles.logoutOverlay}>
+            <View style={styles.logoutLoaderContainer}>
+              <ActivityIndicator size="large" color="#A6E66E" />
+              <Text style={styles.logoutLoaderText}>Logging out...</Text>
+            </View>
+          </View>
+        )}
       </View>
 
       {/* Logout Confirmation Alert */}
@@ -556,6 +580,12 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     marginTop: 'auto',
     marginBottom: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logoutButtonDisabled: {
+    opacity: 0.6,
   },
   logoutText: {
     color: '#FFFFFF',
@@ -579,5 +609,29 @@ const styles = StyleSheet.create({
     height: 30,
     backgroundColor: '#FFFFFF',
     borderRadius: 2,
+  },
+  // Logout Overlay Styles
+  logoutOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  logoutLoaderContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  logoutLoaderText: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: '500',
+    marginTop: 16,
+    textAlign: 'center',
   },
 }); 

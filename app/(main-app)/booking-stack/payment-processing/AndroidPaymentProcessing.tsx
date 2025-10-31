@@ -526,6 +526,7 @@ const styles = StyleSheet.create({
     gap: 12,
     marginTop: 16,
     justifyContent: 'center',
+    alignItems: 'center',
   },
   retryButton: {
     backgroundColor: '#A6E66E',

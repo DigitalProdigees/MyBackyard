@@ -79,12 +79,17 @@ export const createCheckoutSession = functions.https.onCall(async (data: any, co
 
     // If owner has Connect account, use it for payment destination
     if (ownerConnectAccountId) {
+      console.log('Using Stripe Connect account for payment:', ownerConnectAccountId);
       sessionParams.payment_intent_data = {
         application_fee_amount: Math.round(amount * 100 * CONNECT_CONFIG.platformFeePercentage), // 0% for sandbox
         transfer_data: {
           destination: ownerConnectAccountId,
         },
       };
+      console.log('Payment will be transferred to owner account:', ownerConnectAccountId);
+    } else {
+      console.log('No Stripe Connect account found for owner:', ownerId);
+      console.log('Payment will go to platform account (not owner account)');
     }
 
     const session = await stripe.checkout.sessions.create(sessionParams);
@@ -365,7 +370,7 @@ export const handlePaymentSuccess = functions.https.onCall(async (data: any, con
   }
 });
 
-// Get payment history for admin
+// Get payment history for owner - hybrid approach (Firebase + Stripe)
 export const getPaymentHistory = functions.https.onCall(async (data: any, context: any) => {
   try {
     // Verify user is authenticated
@@ -373,38 +378,148 @@ export const getPaymentHistory = functions.https.onCall(async (data: any, contex
       throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
     }
 
-    // Check if user is admin (you can implement your own admin check)
-    const userRef = admin.database().ref(`users/${context.auth.uid}`);
-    const userSnapshot = await userRef.once('value');
-    const userData = userSnapshot.val();
+    const uid = context.auth.uid;
+    console.log('Getting payment history for user:', uid);
 
-    if (!userData || !userData.isAdmin) {
-      throw new functions.https.HttpsError('permission-denied', 'Admin access required');
+    // Get user's Stripe Connect account ID
+    const userRef = admin.database().ref(`users/${uid}`);
+    const userSnapshot = await userRef.once('value');
+    
+    if (!userSnapshot.exists()) {
+      throw new functions.https.HttpsError('not-found', 'User not found');
     }
 
-    // Get all bookings with payment info
-    const bookingsRef = admin.database().ref('bookings');
-    const bookingsSnapshot = await bookingsRef.once('value');
-    const bookingsData = bookingsSnapshot.val();
+    const userData = userSnapshot.val();
+    const stripeConnectAccountId = userData.stripeConnectAccountId;
+
+    if (!stripeConnectAccountId) {
+      console.log('No Stripe Connect account found for user:', uid);
+      return {
+        success: true,
+        paymentHistory: []
+      };
+    }
+
+    console.log('Fetching owner bookings from Firebase for user:', uid);
+
+    // Get owner's bookings from Firebase (this has the booking metadata)
+    const ownerBookingsRef = admin.database().ref(`users/${uid}/ownerBookings`);
+    const ownerBookingsSnapshot = await ownerBookingsRef.once('value');
+
+    if (!ownerBookingsSnapshot.exists()) {
+      console.log('No owner bookings found for user:', uid);
+      return {
+        success: true,
+        paymentHistory: []
+      };
+    }
+
+    const ownerBookings = ownerBookingsSnapshot.val();
+    console.log('Found', Object.keys(ownerBookings).length, 'owner bookings in Firebase');
+
+    // Get Stripe charges for payment status and amounts
+    console.log('Fetching charges from Stripe for account:', stripeConnectAccountId);
+    const charges = await stripe.charges.list({
+      limit: 100, // Get last 100 charges
+    }, {
+      stripeAccount: stripeConnectAccountId
+    });
+
+    console.log('Found', charges.data.length, 'charges from Stripe');
 
     const paymentHistory = [];
-    if (bookingsData) {
-      for (const bookingId in bookingsData) {
-        const booking = bookingsData[bookingId];
-        if (booking.isPaid && booking.paymentStatus === 'completed') {
+    
+    // Process each owner booking
+    for (const bookingId in ownerBookings) {
+      const booking = ownerBookings[bookingId];
+      
+      // Only include paid bookings
+      if (booking.isPaid && booking.paymentStatus === 'completed') {
+        console.log('Processing booking:', bookingId, 'paymentIntentId:', booking.paymentIntentId);
+        
+        // Find matching Stripe charge by payment intent ID
+        let matchingCharge = null;
+        for (const charge of charges.data) {
+          if (charge.payment_intent === booking.paymentIntentId) {
+            matchingCharge = charge;
+            break;
+          }
+        }
+        
+        if (matchingCharge && matchingCharge.status === 'succeeded') {
+          console.log('Found matching Stripe charge for booking:', bookingId);
+          
+          // Determine payout status from Stripe
+          let payoutStatus = 'pending';
+          let payoutDate = null;
+          
+          try {
+            if (matchingCharge.balance_transaction && typeof matchingCharge.balance_transaction === 'string') {
+              const balanceTransaction = await stripe.balanceTransactions.retrieve(matchingCharge.balance_transaction, {
+                stripeAccount: stripeConnectAccountId
+              });
+              
+              if (balanceTransaction.status === 'available') {
+                // Check if it's been 7 days since the charge
+                const chargeDate = new Date(matchingCharge.created * 1000);
+                const now = new Date();
+                const daysSinceCharge = (now.getTime() - chargeDate.getTime()) / (1000 * 60 * 60 * 24);
+                
+                if (daysSinceCharge >= 7) {
+                  payoutStatus = 'ready_for_payout';
+                } else {
+                  payoutStatus = 'pending';
+                }
+                payoutDate = new Date(balanceTransaction.created * 1000).toISOString();
+              } else if (balanceTransaction.status === 'pending') {
+                payoutStatus = 'pending';
+              }
+            }
+          } catch (error) {
+            console.log('Error checking payout status for charge:', matchingCharge.id, error);
+          }
+
+          // Combine Firebase booking data with Stripe payment data
           paymentHistory.push({
-            bookingId,
-            ownerName: booking.ownerName,
-            renterEmail: booking.renterEmail,
-            amount: booking.amount,
-            currency: booking.currency,
+            bookingId: bookingId,
+            ownerName: userData.fullName || 'Property Owner',
+            renterName: booking.fullName || 'Unknown Renter',
+            renterEmail: booking.renterEmail || '',
+            amount: matchingCharge.amount / 100, // Use Stripe amount
+            currency: matchingCharge.currency.toUpperCase(), // Use Stripe currency
             paymentIntentId: booking.paymentIntentId,
-            createdAt: booking.createdAt,
-            listingId: booking.listingId
+            createdAt: new Date(matchingCharge.created * 1000).getTime(), // Use Stripe timestamp
+            listingId: booking.listingId || '',
+            listingTitle: booking.backyardName || booking.listingInfo?.title || 'Unknown Listing', // Use Firebase data
+            payoutStatus: payoutStatus, // Use Stripe payout status
+            payoutDate: payoutDate,
+            stripePaymentStatus: matchingCharge.status, // Use Stripe status
+            stripeChargeId: matchingCharge.id
+          });
+        } else {
+          console.log('No matching Stripe charge found for booking:', bookingId);
+          // Fallback to Firebase data only
+          paymentHistory.push({
+            bookingId: bookingId,
+            ownerName: userData.fullName || 'Property Owner',
+            renterName: booking.fullName || 'Unknown Renter',
+            renterEmail: booking.renterEmail || '',
+            amount: booking.amount || 0,
+            currency: (booking.currency || 'USD').toUpperCase(),
+            paymentIntentId: booking.paymentIntentId,
+            createdAt: booking.createdAt || Date.now(),
+            listingId: booking.listingId || '',
+            listingTitle: booking.backyardName || booking.listingInfo?.title || 'Unknown Listing',
+            payoutStatus: 'pending',
+            payoutDate: null,
+            stripePaymentStatus: 'unknown',
+            stripeChargeId: booking.paymentIntentId
           });
         }
       }
     }
+
+    console.log('Payment history combined:', paymentHistory.length, 'payments');
 
     return {
       success: true,
@@ -560,11 +675,11 @@ export const createConnectAccount = functions.https.onCall(async (data: any, con
       }
     });
 
-    // Create account link for onboarding
+    // Create account link for onboarding with HTTPS return URL
     const accountLink = await stripe.accountLinks.create({
       account: account.id,
       refresh_url: 'https://stripe.com/connect/refresh',
-      return_url: 'https://stripe.com/connect/return',
+      return_url: 'https://mybackyard-55716.web.app/owner-verification-complete.html', // HTTPS URL required by Stripe
       type: 'account_onboarding',
     });
 
@@ -705,7 +820,7 @@ export const createAccountLink = functions.https.onCall(async (data: any, contex
     const accountLink = await stripe.accountLinks.create({
       account: userData.stripeConnectAccountId,
       refresh_url: 'https://stripe.com/connect/refresh',
-      return_url: 'https://stripe.com/connect/return',
+      return_url: 'https://mybackyard-55716.web.app/owner-verification-complete.html', // HTTPS URL required by Stripe
       type: 'account_onboarding',
     });
 
@@ -759,5 +874,246 @@ export const refreshConnectAccountStatus = functions.https.onCall(async (data: a
   } catch (error: any) {
     console.log('Error refreshing account status:', error);
     throw new functions.https.HttpsError('internal', error.message || 'Failed to refresh account status');
+  }
+});
+
+// Check payout status for a specific payment
+export const checkPayoutStatus = functions.https.onCall(async (data: any, context: any) => {
+  try {
+    // Verify user is authenticated
+    if (!context.auth) {
+      throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+    }
+
+    const { paymentIntentId } = data;
+    const uid = context.auth.uid;
+
+    if (!paymentIntentId) {
+      throw new functions.https.HttpsError('invalid-argument', 'Payment Intent ID is required');
+    }
+
+    // Get user's Stripe Connect account ID
+    const userRef = admin.database().ref(`users/${uid}`);
+    const userSnapshot = await userRef.once('value');
+    const userData = userSnapshot.val();
+
+    if (!userData?.stripeConnectAccountId) {
+      throw new functions.https.HttpsError('failed-precondition', 'No Stripe Connect account found');
+    }
+
+    // Get the charge for this payment intent
+    const charges = await stripe.charges.list({
+      limit: 100,
+    }, {
+      stripeAccount: userData.stripeConnectAccountId
+    });
+
+    const charge = charges.data.find(c => c.payment_intent === paymentIntentId);
+    
+    if (!charge) {
+      throw new functions.https.HttpsError('not-found', 'Charge not found');
+    }
+
+    // Get balance transaction to check payout status
+    let payoutStatus = 'pending';
+    let availableBalance = 0;
+    let pendingBalance = 0;
+    let payoutDate = null;
+
+    if (charge.balance_transaction && typeof charge.balance_transaction === 'string') {
+      const balanceTransaction = await stripe.balanceTransactions.retrieve(charge.balance_transaction, {
+        stripeAccount: userData.stripeConnectAccountId
+      });
+
+      if (balanceTransaction.status === 'available') {
+        payoutStatus = 'ready_for_payout';
+        availableBalance = balanceTransaction.amount / 100; // Convert from cents
+      } else if (balanceTransaction.status === 'pending') {
+        payoutStatus = 'pending';
+        pendingBalance = balanceTransaction.amount / 100;
+      }
+    }
+
+    // Get account balance
+    const balance = await stripe.balance.retrieve({
+      stripeAccount: userData.stripeConnectAccountId
+    });
+
+    const totalAvailable = balance.available[0]?.amount / 100 || 0;
+
+    return {
+      success: true,
+      payoutStatus,
+      availableBalance: totalAvailable,
+      pendingBalance,
+      payoutDate,
+      chargeId: charge.id,
+      amount: charge.amount / 100,
+      currency: charge.currency.toUpperCase()
+    };
+  } catch (error: any) {
+    console.log('Error checking payout status:', error);
+    throw new functions.https.HttpsError('internal', error.message || 'Failed to check payout status');
+  }
+});
+
+// Trigger manual payout
+export const triggerManualPayout = functions.https.onCall(async (data: any, context: any) => {
+  try {
+    // Verify user is authenticated
+    if (!context.auth) {
+      throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+    }
+
+    const { amount, currency = 'usd' } = data;
+    const uid = context.auth.uid;
+
+    if (!amount || amount <= 0) {
+      throw new functions.https.HttpsError('invalid-argument', 'Valid amount is required');
+    }
+
+    // Get user's Stripe Connect account ID
+    const userRef = admin.database().ref(`users/${uid}`);
+    const userSnapshot = await userRef.once('value');
+    const userData = userSnapshot.val();
+
+    if (!userData?.stripeConnectAccountId) {
+      throw new functions.https.HttpsError('failed-precondition', 'No Stripe Connect account found');
+    }
+
+    // Check if account has sufficient balance
+    const balance = await stripe.balance.retrieve({
+      stripeAccount: userData.stripeConnectAccountId
+    });
+
+    const availableBalance = balance.available[0]?.amount || 0;
+    const requestedAmount = Math.round(amount * 100); // Convert to cents
+
+    if (availableBalance < requestedAmount) {
+      throw new functions.https.HttpsError('failed-precondition', 'Insufficient balance for payout');
+    }
+
+    // Create payout
+    const payout = await stripe.payouts.create({
+      amount: requestedAmount,
+      currency: currency.toLowerCase(),
+      method: 'standard', // or 'instant' for instant payouts (requires additional setup)
+    }, {
+      stripeAccount: userData.stripeConnectAccountId
+    });
+
+    console.log('Payout created:', payout.id, 'Amount:', amount, 'Currency:', currency);
+
+    return {
+      success: true,
+      payoutId: payout.id,
+      amount: payout.amount / 100,
+      currency: payout.currency.toUpperCase(),
+      status: payout.status,
+      arrivalDate: payout.arrival_date,
+      message: 'Payout initiated successfully'
+    };
+  } catch (error: any) {
+    console.log('Error creating payout:', error);
+    throw new functions.https.HttpsError('internal', error.message || 'Failed to create payout');
+  }
+});
+
+// Get account balance
+export const getAccountBalance = functions.https.onCall(async (data: any, context: any) => {
+  try {
+    // Verify user is authenticated
+    if (!context.auth) {
+      throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+    }
+
+    const uid = context.auth.uid;
+
+    // Get user's Stripe Connect account ID
+    const userRef = admin.database().ref(`users/${uid}`);
+    const userSnapshot = await userRef.once('value');
+    const userData = userSnapshot.val();
+
+    if (!userData?.stripeConnectAccountId) {
+      throw new functions.https.HttpsError('failed-precondition', 'No Stripe Connect account found');
+    }
+
+    // Get account balance
+    const balance = await stripe.balance.retrieve({
+      stripeAccount: userData.stripeConnectAccountId
+    });
+
+    const availableBalance = balance.available[0]?.amount / 100 || 0;
+    const pendingBalance = balance.pending[0]?.amount / 100 || 0;
+
+    return {
+      success: true,
+      availableBalance,
+      pendingBalance,
+      currency: balance.available[0]?.currency?.toUpperCase() || 'USD'
+    };
+  } catch (error: any) {
+    console.log('Error getting account balance:', error);
+    throw new functions.https.HttpsError('internal', error.message || 'Failed to get account balance');
+  }
+});
+
+// Test Helper: Move funds to payout ready (for sandbox testing)
+export const moveFundsToPayoutReady = functions.https.onCall(async (data, context) => {
+  try {
+    // Verify user is authenticated
+    if (!context.auth) {
+      throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
+    }
+
+    const { accountId, amount, bookingId } = data;
+
+    if (!accountId || !amount) {
+      throw new functions.https.HttpsError('invalid-argument', 'Account ID and amount are required');
+    }
+
+    console.log(`Moving funds to payout ready - Account: ${accountId}, Amount: ${amount}, Booking: ${bookingId || 'all'}`);
+
+    // Create a test charge to move funds to available balance
+    // This simulates moving funds from pending to available (payout ready)
+    const result = await stripe.charges.create({
+      amount: amount, // amount in cents
+      currency: 'usd',
+      source: 'tok_visa', // Test token
+      description: `Test charge to move funds to payout ready - ${bookingId || 'manual'}`,
+    }, {
+      stripeAccount: accountId
+    });
+
+    console.log('Funds moved to payout ready successfully:', result);
+
+    // If a specific booking ID is provided, update the earnings status in the database
+    if (bookingId) {
+      try {
+        const admin = require('firebase-admin');
+        const db = admin.database();
+        const userId = context.auth.uid;
+        
+        // Update the specific earning's status to 'ready_for_payout'
+        await db.ref(`users/${userId}/earnings/${bookingId}`).update({
+          status: 'ready_for_payout',
+          updatedAt: Date.now()
+        });
+        
+        console.log(`Updated earnings status for booking ${bookingId} to ready_for_payout`);
+      } catch (dbError) {
+        console.log('Error updating earnings status in database:', dbError);
+        // Don't throw error here as the Stripe operation was successful
+      }
+    }
+
+    return {
+      success: true,
+      message: 'Funds moved to payout ready successfully',
+      result: result
+    };
+  } catch (error: any) {
+    console.log('Error moving funds to payout ready:', error);
+    throw new functions.https.HttpsError('internal', error.message || 'Failed to move funds to payout ready');
   }
 });

@@ -71,6 +71,9 @@ export default function RenterHome() {
     isSettingUp: false
   });
 
+  // Initial loading state for verification check
+  const [isInitialVerificationCheck, setIsInitialVerificationCheck] = useState(true);
+
   // Track image loading state
   const { isLoading: isImagesLoading, onImageLoad, onImageError, loadedCount, totalCount } = useImageLoadingState(listings);
   
@@ -239,8 +242,12 @@ export default function RenterHome() {
   // Removed handleProfilePress - Header component now handles menu drawer
 
   // Check Stripe Connect status
-  const checkStripeStatus = async () => {
-    setStripeStatus(prev => ({ ...prev, isChecking: true }));
+  const checkStripeStatus = async (isInitialCheck = false) => {
+    if (isInitialCheck) {
+      setIsInitialVerificationCheck(true);
+    } else {
+      setStripeStatus(prev => ({ ...prev, isChecking: true }));
+    }
     
     try {
       const functions = getFunctions();
@@ -261,6 +268,10 @@ export default function RenterHome() {
     } catch (error) {
       console.log('Error checking Stripe status:', error);
       setStripeStatus(prev => ({ ...prev, isChecking: false }));
+    } finally {
+      if (isInitialCheck) {
+        setIsInitialVerificationCheck(false);
+      }
     }
   };
 
@@ -368,9 +379,19 @@ export default function RenterHome() {
   // Check Stripe status on component mount
   useEffect(() => {
     if (user?.type === 'owner') {
-      checkStripeStatus();
+      checkStripeStatus(true); // Pass true for initial check
     }
   }, [user?.type]);
+
+  // Refresh verification status when screen becomes active (e.g., returning from Stripe)
+  useFocusEffect(
+    React.useCallback(() => {
+      if (user?.type === 'owner') {
+        console.log('Owner home screen focused - refreshing verification status');
+        checkStripeStatus(false); // Refresh status when returning to screen
+      }
+    }, [user?.type])
+  );
 
   const getFirstName = () => {
     const fullName = displayName || (user as any)?.name || '';
@@ -425,8 +446,13 @@ export default function RenterHome() {
         <Text style={styles.welcomeSubtitle}>Welcome.</Text>
       </View>
 
-      {/* Conditional UI based on Stripe verification status */}
-      {stripeStatus.status === 'verified' ? (
+      {/* Initial loading state while checking verification */}
+      {isInitialVerificationCheck ? (
+        <View style={styles.initialLoadingContainer}>
+          <ActivityIndicator size="large" color="#A6E66E" />
+          <Text style={styles.loadingText}>Checking verification status...</Text>
+        </View>
+      ) : stripeStatus.status === 'verified' ? (
         // Full access - verified owner
         <>
           {/* Search */}
@@ -997,5 +1023,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 16,
     flexWrap: 'wrap',
+  },
+  // Initial Loading Styles
+  initialLoadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 40,
+    paddingVertical: 60,
+  },
+  loadingText: {
+    color: 'white',
+    fontSize: 16,
+    marginTop: 12,
+    textAlign: 'center',
+    fontWeight: '500',
   },
 });

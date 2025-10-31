@@ -11,6 +11,7 @@ import { ref, set, update } from 'firebase/database';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import * as WebBrowser from 'expo-web-browser';
+import * as Linking from 'expo-linking';
 
 const { width, height } = Dimensions.get('window');
 const ratio = Math.min(width, height) / 375; // Base ratio for responsive scaling
@@ -187,6 +188,9 @@ export default function VerificationSuccess() {
           console.log('Stripe onboarding completed');
           // Refresh status after onboarding
           await checkStripeStatus();
+          // Navigate to owner home after verification
+          console.log('Navigating to owner home after Stripe verification');
+          router.replace('/(owner-app)/(main-app)/home');
         }
       } else if (data.success && data.isExisting) {
         // Account already exists
@@ -241,6 +245,36 @@ export default function VerificationSuccess() {
       checkStripeStatus();
     }
   }, [isAdmin, stripeSetupComplete]);
+
+  // Listen for deep links (when user returns from Stripe verification) - similar to payment processing
+  useEffect(() => {
+    const handleDeepLink = async (url: string) => {
+      console.log('Verification deep link received:', url);
+      
+      if (url.includes('owner-verification-complete')) {
+        console.log('Stripe verification completed, navigating to owner home...');
+        setStripeSetupComplete(true);
+        await checkStripeStatus();
+        router.replace('/(owner-app)/(main-app)/home');
+      }
+    };
+
+    // Listen for deep links
+    const subscription = Linking.addEventListener('url', ({ url }) => {
+      handleDeepLink(url);
+    });
+
+    // Check if app was opened with a deep link
+    Linking.getInitialURL().then((url) => {
+      if (url) {
+        handleDeepLink(url);
+      }
+    });
+
+    return () => {
+      subscription?.remove();
+    };
+  }, []);
 
   // TODO: Uncomment for future countdown implementation
   // useEffect(() => {

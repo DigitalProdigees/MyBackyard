@@ -72,6 +72,7 @@ const styles = StyleSheet.create({
   },
   buttonContainer: {
     marginTop: 40,
+    alignItems: 'center',
   },
   homeButton: {
     backgroundColor: '#2A3062',

@@ -398,13 +398,13 @@ export default function CustomDrawerContent(props: DrawerContentComponentProps) 
               <Text style={[styles.menuText, isOwnerPending && styles.disabledMenuText]}>My Orders</Text>
             </TouchableOpacity>
 
-            {/* <TouchableOpacity
+            <TouchableOpacity
               style={[styles.menuItem, isOwnerPending && styles.disabledMenuItem]}
               onPress={isOwnerPending ? () => {} : () => handleNavigation(`${baseRoute}/my-earnings`)}
               disabled={isOwnerPending}
             >
               <Text style={[styles.menuText, isOwnerPending && styles.disabledMenuText]}>My Earnings</Text>
-            </TouchableOpacity> */}
+            </TouchableOpacity>
           </>
         ) : (
           <TouchableOpacity

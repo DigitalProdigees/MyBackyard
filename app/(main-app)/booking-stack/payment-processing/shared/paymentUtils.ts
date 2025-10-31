@@ -53,6 +53,20 @@ export const createCheckoutSession = async (data: PaymentData): Promise<Checkout
   const functions = getFunctions();
   const createCheckoutSessionFunction = httpsCallable(functions, 'createCheckoutSession');
 
+  // Get owner's Stripe Connect account ID
+  let ownerConnectAccountId = null;
+  try {
+    const ownerRef = ref(rtdb, `users/${listing.ownerId}`);
+    const ownerSnapshot = await get(ownerRef);
+    if (ownerSnapshot.exists()) {
+      const ownerData = ownerSnapshot.val();
+      ownerConnectAccountId = ownerData.stripeConnectAccountId || null;
+      console.log('Owner Stripe Connect Account ID:', ownerConnectAccountId);
+    }
+  } catch (error) {
+    console.log('Error fetching owner Connect account ID:', error);
+  }
+
   // Create checkout session
   const checkoutData = {
     amount: parseFloat(data.total),
@@ -60,6 +74,7 @@ export const createCheckoutSession = async (data: PaymentData): Promise<Checkout
     listingId: data.listingId,
     ownerId: listing.ownerId,
     ownerName: listing.ownerName || 'Property Owner',
+    ownerConnectAccountId: ownerConnectAccountId,
     bookingData: {
       fullName: data.fullName,
       guests: data.guests,

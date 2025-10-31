@@ -40,6 +40,13 @@ export default function OwnerLayout() {
           }}
         />
         <Drawer.Screen
+          name="my-earnings/index"
+          options={{
+            drawerLabel: 'My Earnings',
+            title: 'My Earnings',
+          }}
+        />
+        <Drawer.Screen
           name="messaging/index"
           options={{
             drawerLabel: 'Messaging',

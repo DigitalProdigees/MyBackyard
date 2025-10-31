@@ -33,7 +33,7 @@ export default {
           autoVerify: true,
           data: [
             {
-              scheme: 'mybackyard-android',
+              scheme: 'mybackyard',
             },
           ],
           category: ['BROWSABLE', 'DEFAULT'],

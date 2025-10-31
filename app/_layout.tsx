@@ -119,13 +119,22 @@ function RootLayoutContent() {
     });
   }, []);
 
-  // Handle incoming dynamic links to route reset password in-app
+  // Handle incoming dynamic links to route reset password in-app and Stripe verification return
   useEffect(() => {
     const handleURL = async (eventUrl?: string | null) => {
       try {
         const url = eventUrl ?? (await RNLinking.Linking.getInitialURL());
         if (!url) return;
         
+        // Handle Stripe verification return - check if user is returning from Stripe
+        if (url === 'mybackyard://owner-verification-complete' || 
+            url.includes('owner-verification-complete') ||
+            url.includes('mybackyard-55716.web.app') ||
+            url.includes('/(owner-app)/(main-app)/home')) {
+          console.log('User returned from Stripe verification, navigating to owner home');
+          router.replace('/(owner-app)/(main-app)/home');
+          return;
+        }
         
         // Firebase dynamic link format: https://<domain>/?link=https%3A%2F%2F<auth-domain>%2F__%2Fauth%2Faction%3Fmode%3DresetPassword%26oobCode%3DXXXX&...
         const outer = new URL(url);
