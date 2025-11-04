@@ -1,0 +1,36 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null && request.auth.uid != null;
+    }
+    
+    // Allow read access to all listing images (public)
+    // Allow write only if user is authenticated
+    match /listings/{listingId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+    
+    // User profile images - only the user can upload their own
+    match /users/{userId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Chat/media files - authenticated users can upload
+    match /chat/{userId}/{allPaths=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Default: deny all other access
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
+

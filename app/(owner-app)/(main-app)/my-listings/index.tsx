@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, TextInput, ScrollView, Dimensions, Modal, Platform, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { GradientBackground, Header, BackButton, GradientButton, FeaturesModal, AdditionalServicesModal, CalculateAreaModal, LoadingIndicator } from '@/app/components';
@@ -8,7 +8,7 @@ import { addListing, updateListing } from '@/app/store/slices/listingsSlice';
 import { auth, rtdb } from '@/app/lib/firebase';
 import { ref, push, set, update as rtdbUpdate, get } from 'firebase/database';
 import { uploadListingImages } from '@/app/lib/utils/imageStorageUtils';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { useAppSelector } from '@/app/store/hooks';
 // Image compression no longer needed since we're using Firebase Storage
@@ -744,6 +744,41 @@ export default function MyListingsScreen() {
 		};
 	}, []);
 
+	// Reset form function
+	const resetForm = useCallback(() => {
+		setFormData({
+			title: '',
+			price: '',
+			country: 'Pakistan',
+			city: 'Karachi',
+			state: 'Sindh',
+			zipCode: '',
+			features: ['', ''],
+			description: '',
+			aboutOwner: '',
+			houseRules: '',
+			availableWeekdays: [],
+			availableTimes: {
+				startTime: '',
+				endTime: '',
+			},
+		});
+		setFeatures(['', '']);
+		setAdditionalServices([]);
+		setCoverImage(null);
+		setSubImages([]);
+		setCalcAreaData(null);
+	}, []);
+
+	// Reset form when navigating to add-listing screen (no editId)
+	useFocusEffect(
+		useCallback(() => {
+			if (!editId) {
+				resetForm();
+			}
+		}, [editId, resetForm])
+	);
+
 	// Prefill when editing
 	React.useEffect(() => {
 		if (!editId) return;
@@ -766,8 +801,23 @@ export default function MyListingsScreen() {
 		// Prefill UI states as well
 		setFeatures(listing.features && listing.features.length ? listing.features : ['', '']);
 		setAdditionalServices(listing.additionalServices || []);
-		setCoverImage(listing.mainImage && (listing.mainImage.uri || null));
-		setSubImages((listing.thumbnails || []).map((t: any) => t.uri).filter(Boolean));
+		// Handle mainImage - can be a string (Firebase Storage URL) or object with uri property
+		const mainImageUri = listing.mainImage 
+			? (typeof listing.mainImage === 'string' 
+				? listing.mainImage 
+				: (listing.mainImage.uri || null))
+			: null;
+		setCoverImage(mainImageUri);
+		// Handle thumbnails - can be array of strings (Firebase Storage URLs) or objects with uri property
+		const thumbnailUris = (listing.thumbnails || []).map((t: any) => {
+			if (typeof t === 'string') {
+				return t;
+			} else if (t && typeof t === 'object' && t.uri) {
+				return t.uri;
+			}
+			return null;
+		}).filter(Boolean);
+		setSubImages(thumbnailUris);
 		setCalcAreaData(listing.calculateArea ?? null);
 	}, [editId, listings]);
 

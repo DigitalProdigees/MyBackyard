@@ -95,20 +95,44 @@ export default function MyBookings() {
 
     // Set up real-time listener (this handles both initial load and updates)
     const userBookingsRef = ref(rtdb, `users/${uid}/bookings`);
-    const unsubscribe = onValue(userBookingsRef, (snapshot) => {
+    const unsubscribe = onValue(userBookingsRef, async (snapshot) => {
       try {
         if (snapshot.exists()) {
           const bookingsData = snapshot.val();
           const bookingsArray: Booking[] = [];
           
-          for (const bookingId in bookingsData) {
-            const booking = bookingsData[bookingId];
-            const bookingDate = new Date(booking.bookingDate || booking.createdAt);
-            
+          // First, validate all bookings and check if their listings exist in Firebase
+          const validatedBookings = await Promise.all(
+            Object.keys(bookingsData).map(async (bookingId) => {
+              const booking = bookingsData[bookingId];
+              
+              // Only process paid bookings with completed payment status
+              if (!booking.isPaid || booking.paymentStatus !== 'completed') {
+                return null;
+              }
 
-            // Only include bookings that are paid and have successful payment status
-            if (booking.isPaid && booking.paymentStatus === 'completed') {
-              console.log('Raw booking data for', booking.backyardName || booking.listingInfo?.title, ':', {
+              // If booking has a listingId, verify the listing exists in Firebase
+              if (booking.listingId) {
+                try {
+                  const listingRef = ref(rtdb, `listings/${booking.listingId}`);
+                  const listingSnapshot = await get(listingRef);
+                  
+                  if (!listingSnapshot.exists()) {
+                    console.log('⚠️ Booking', bookingId, 'has listingId', booking.listingId, 'but listing does not exist in Firebase - skipping');
+                    return null;
+                  }
+                } catch (error) {
+                  console.log('❌ Error checking listing existence for booking', bookingId, ':', error);
+                  return null;
+                }
+              } else {
+                console.log('⚠️ Booking', bookingId, 'has no listingId - skipping');
+                return null;
+              }
+
+              const bookingDate = new Date(booking.bookingDate || booking.createdAt);
+              
+              console.log('✅ Valid booking data for', booking.backyardName || booking.listingInfo?.title, ':', {
                 bookingId: bookingId,
                 listingId: booking.listingId,
                 mainImage: booking.mainImage,
@@ -117,7 +141,7 @@ export default function MyBookings() {
                 listingInfoMainImage: booking.listingInfo?.mainImage
               });
               
-              bookingsArray.push({
+              return {
                 id: booking.id || bookingId,
                 dates: booking.dates || bookingDate.toLocaleDateString('en-US', { day: 'numeric' }),
                 month: booking.month || bookingDate.toLocaleDateString('en-US', { month: 'long' }),
@@ -148,15 +172,18 @@ export default function MyBookings() {
                   month: 'long',
                   day: 'numeric'
                 })
-              });
-            }
-          }
+              };
+            })
+          );
+
+          // Filter out null values (invalid bookings)
+          const validBookings = validatedBookings.filter((booking): booking is Booking => booking !== null);
           
           // Sort by booking date (newest first)
-          bookingsArray.sort((a, b) => new Date(b.bookingDate).getTime() - new Date(a.bookingDate).getTime());
+          validBookings.sort((a, b) => new Date(b.bookingDate).getTime() - new Date(a.bookingDate).getTime());
           
           // Extract unique listing IDs and fetch their images
-          const uniqueListingIds = [...new Set(bookingsArray.map(b => b.listingId).filter(Boolean))] as string[];
+          const uniqueListingIds = [...new Set(validBookings.map(b => b.listingId).filter(Boolean))] as string[];
           if (uniqueListingIds.length > 0) {
             console.log('Fetching images for listing IDs:', uniqueListingIds);
             fetchListingImages(uniqueListingIds).then(images => {
@@ -165,7 +192,8 @@ export default function MyBookings() {
             });
           }
           
-          setBookings(bookingsArray);
+          setBookings(validBookings);
+          console.log('✅ Loaded', validBookings.length, 'valid bookings (filtered out', validatedBookings.length - validBookings.length, 'invalid bookings)');
         } else {
           setBookings([]);
         }
@@ -190,24 +218,48 @@ export default function MyBookings() {
       if (uid) {
         // Force refresh by re-fetching data
         const userBookingsRef = ref(rtdb, `users/${uid}/bookings`);
-        get(userBookingsRef).then((snapshot) => {
+        get(userBookingsRef).then(async (snapshot) => {
           if (snapshot.exists()) {
             const bookingsData = snapshot.val();
-            const bookingsArray: Booking[] = [];
             
-            for (const bookingId in bookingsData) {
-              const booking = bookingsData[bookingId];
-              const bookingDate = new Date(booking.bookingDate || booking.createdAt);
-              
-              // Only include bookings that are paid and have successful payment status
-              if (booking.isPaid && booking.paymentStatus === 'completed') {
-                bookingsArray.push({
-                  id: bookingId,
-                  dates: bookingDate.getDate().toString(),
-                  month: bookingDate.toLocaleDateString('en-US', { month: 'short' }),
-                  year: bookingDate.getFullYear().toString(),
-                  backyardName: booking.listingInfo?.title || 'Backyard',
-                  location: booking.listingInfo?.location || 'Location',
+            // Validate all bookings and check if their listings exist in Firebase
+            const validatedBookings = await Promise.all(
+              Object.keys(bookingsData).map(async (bookingId) => {
+                const booking = bookingsData[bookingId];
+                
+                // Only process paid bookings with completed payment status
+                if (!booking.isPaid || booking.paymentStatus !== 'completed') {
+                  return null;
+                }
+
+                // If booking has a listingId, verify the listing exists in Firebase
+                if (booking.listingId) {
+                  try {
+                    const listingRef = ref(rtdb, `listings/${booking.listingId}`);
+                    const listingSnapshot = await get(listingRef);
+                    
+                    if (!listingSnapshot.exists()) {
+                      console.log('⚠️ Booking', bookingId, 'has listingId', booking.listingId, 'but listing does not exist in Firebase - skipping');
+                      return null;
+                    }
+                  } catch (error) {
+                    console.log('❌ Error checking listing existence for booking', bookingId, ':', error);
+                    return null;
+                  }
+                } else {
+                  console.log('⚠️ Booking', bookingId, 'has no listingId - skipping');
+                  return null;
+                }
+
+                const bookingDate = new Date(booking.bookingDate || booking.createdAt);
+                
+                return {
+                  id: booking.id || bookingId,
+                  dates: booking.dates || bookingDate.toLocaleDateString('en-US', { day: 'numeric' }),
+                  month: booking.month || bookingDate.toLocaleDateString('en-US', { month: 'long' }),
+                  year: booking.year || bookingDate.toLocaleDateString('en-US', { year: 'numeric' }),
+                  backyardName: booking.backyardName || booking.listingInfo?.title || 'Backyard',
+                  location: booking.location || booking.listingInfo?.location || 'Location',
                   isPaid: booking.isPaid || false,
                   rating: booking.rating || null,
                   review: booking.review || null,
@@ -232,16 +284,34 @@ export default function MyBookings() {
                     month: 'long',
                     day: 'numeric'
                   })
-                });
-              }
-            }
+                };
+              })
+            );
+
+            // Filter out null values (invalid bookings)
+            const validBookings = validatedBookings.filter((booking): booking is Booking => booking !== null);
             
             // Sort by booking date (newest first)
-            bookingsArray.sort((a, b) => new Date(b.bookingDate).getTime() - new Date(a.bookingDate).getTime());
-            setBookings(bookingsArray);
+            validBookings.sort((a, b) => new Date(b.bookingDate).getTime() - new Date(a.bookingDate).getTime());
+            
+            // Extract unique listing IDs and fetch their images
+            const uniqueListingIds = [...new Set(validBookings.map(b => b.listingId).filter(Boolean))] as string[];
+            if (uniqueListingIds.length > 0) {
+              console.log('Fetching images for listing IDs:', uniqueListingIds);
+              fetchListingImages(uniqueListingIds).then(images => {
+                console.log('Fetched listing images:', images);
+                setListingImages(images);
+              });
+            }
+            
+            setBookings(validBookings);
+            console.log('✅ Refreshed bookings - loaded', validBookings.length, 'valid bookings');
+          } else {
+            setBookings([]);
           }
         }).catch((error) => {
           console.log('Error refreshing bookings:', error);
+          setBookings([]);
         });
       }
     }, [])

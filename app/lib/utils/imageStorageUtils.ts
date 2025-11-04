@@ -1,4 +1,4 @@
-import { storage } from '../firebase';
+import { storage, auth } from '../firebase';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 
@@ -37,6 +37,14 @@ export const uploadImageToStorage = async (
   convertToWebP: boolean = true
 ): Promise<ImageUploadResult> => {
   try {
+    // Check authentication before upload
+    const currentUser = auth.currentUser;
+    if (!currentUser || !currentUser.uid) {
+      throw new Error('User must be authenticated to upload images');
+    }
+    
+    console.log('🔐 Uploading with authenticated user:', currentUser.uid);
+    
     // Convert to WebP format if requested
     let processedImageUri = imageUri;
     if (convertToWebP) {
@@ -47,6 +55,8 @@ export const uploadImageToStorage = async (
     // Create a reference to the file location
     const imageRef = ref(storage, `${path}/${fileName || Date.now().toString()}`);
     
+    console.log('📤 Uploading to path:', imageRef.fullPath);
+    
     // Convert URI to blob for upload
     const response = await fetch(processedImageUri);
     const blob = await response.blob();
@@ -56,6 +66,8 @@ export const uploadImageToStorage = async (
     
     // Get the download URL
     const downloadURL = await getDownloadURL(snapshot.ref);
+    
+    console.log('✅ Image uploaded successfully:', downloadURL);
     
     return {
       url: downloadURL,
@@ -148,16 +160,28 @@ export const uploadListingImages = async (
 
     // Upload main image
     if (mainImageUri) {
-      const mainImagePath = generateListingImagePath(listingId, 'main');
-      const mainImageResult = await uploadImageToStorage(mainImageUri, mainImagePath, undefined, convertToWebP);
+      // Generate the full path with filename
+      const fullMainImagePath = generateListingImagePath(listingId, 'main');
+      // Extract directory and filename
+      const pathParts = fullMainImagePath.split('/');
+      const fileName = pathParts.pop() || `main_${Date.now()}.webp`;
+      const directoryPath = pathParts.join('/');
+      
+      const mainImageResult = await uploadImageToStorage(mainImageUri, directoryPath, fileName, convertToWebP);
       results.mainImageUrl = mainImageResult.url;
     }
 
     // Upload thumbnails
     if (thumbnailUris && thumbnailUris.length > 0) {
-      const thumbnailPromises = thumbnailUris.map((uri, index) => {
-        const thumbnailPath = generateListingImagePath(listingId, 'thumbnail', index);
-        return uploadImageToStorage(uri, thumbnailPath, undefined, convertToWebP);
+      const thumbnailPromises = thumbnailUris.map(async (uri, index) => {
+        // Generate the full path with filename
+        const fullThumbnailPath = generateListingImagePath(listingId, 'thumbnail', index);
+        // Extract directory and filename
+        const pathParts = fullThumbnailPath.split('/');
+        const fileName = pathParts.pop() || `thumb_${index}_${Date.now()}.webp`;
+        const directoryPath = pathParts.join('/');
+        
+        return uploadImageToStorage(uri, directoryPath, fileName, convertToWebP);
       });
       
       const thumbnailResults = await Promise.all(thumbnailPromises);

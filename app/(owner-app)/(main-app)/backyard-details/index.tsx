@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity, Dimensions, ActivityIndicator } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
 import { BackyardDetails as BackyardDetailsType } from './types';
@@ -231,6 +231,66 @@ export default function BackyardDetails() {
   // Local state for swapping main image and thumbnails
   const [activeMain, setActiveMain] = React.useState(backyard.mainImage);
   const [thumbs, setThumbs] = React.useState<any[]>(backyard.thumbnails);
+  const [isLoadingImages, setIsLoadingImages] = React.useState(true);
+
+  // Update images when selected listing changes
+  useEffect(() => {
+    // Set loading to true when listing changes
+    setIsLoadingImages(true);
+    
+    if (!selected) {
+      console.log('⚠️ No selected listing, using placeholder images');
+      setActiveMain(require('../../../../assets/icons/renter_home_1.png'));
+      setThumbs([
+        require('../../../../assets/icons/renter_home_1.png'),
+        require('../../../../assets/icons/renter_home_2.png'),
+        require('../../../../assets/icons/renter_home_1.png'),
+        require('../../../../assets/icons/renter_home_2.png'),
+      ]);
+      setIsLoadingImages(false);
+      return;
+    }
+
+    console.log('🖼️ Owner BackyardDetails: Updating images for listing:', selected.id, {
+      mainImage: selected.mainImage,
+      mainImageType: typeof selected.mainImage,
+      thumbnailsLength: selected.thumbnails?.length
+    });
+
+    // Use setTimeout to ensure images are set before hiding loader (for smooth transition)
+    const updateImages = () => {
+      if (selected.mainImage) {
+        const normalizedMainImage = normalizeImage(selected.mainImage);
+        setActiveMain(normalizedMainImage);
+        
+        // Update thumbnails
+        if (selected.thumbnails && selected.thumbnails.length > 0) {
+          const normalizedThumbnails = selected.thumbnails.map((t: any) => normalizeImage(t));
+          setThumbs(normalizedThumbnails);
+        } else {
+          // Use main image as thumbnail if no thumbnails
+          setThumbs([normalizedMainImage]);
+        }
+      } else {
+        // Fallback to placeholder
+        console.log('⚠️ No mainImage found, using placeholder');
+        setActiveMain(require('../../../../assets/icons/renter_home_1.png'));
+        setThumbs([
+          require('../../../../assets/icons/renter_home_1.png'),
+          require('../../../../assets/icons/renter_home_2.png'),
+          require('../../../../assets/icons/renter_home_1.png'),
+          require('../../../../assets/icons/renter_home_2.png'),
+        ]);
+      }
+      
+      // Hide loader after images are set
+      setTimeout(() => {
+        setIsLoadingImages(false);
+      }, 100);
+    };
+
+    updateImages();
+  }, [selected?.id, selected?.mainImage, selected?.thumbnails]);
 
   const handleThumbPress = (index: number) => {
     const clicked = thumbs[index];
@@ -273,24 +333,33 @@ export default function BackyardDetails() {
           {/* Main Image with Price Tag */}
           <View style={{ paddingHorizontal: 20 }}>
             <View style={styles.imageContainer}>
-              <Image source={activeMain} style={styles.mainImage} />
-              <View style={styles.priceTag}>
-                <Text style={styles.priceText}>{backyard.price}</Text>
-              </View>
+              {isLoadingImages ? (
+                <View style={styles.imageLoaderContainer}>
+                  <ActivityIndicator size="large" color="#A6E66E" />
+                  <Text style={styles.loaderText}>Loading images...</Text>
+                </View>
+              ) : (
+                <>
+                  <Image source={activeMain} style={styles.mainImage} />
+                  <View style={styles.priceTag}>
+                    <Text style={styles.priceText}>{backyard.price}</Text>
+                  </View>
 
-              {/* Thumbnails */}
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.thumbnailScroll}
-                contentContainerStyle={styles.thumbnailContainer}
-              >
-                {thumbs.map((thumb, index) => (
-                  <TouchableOpacity key={index} style={styles.thumbnailWrapper} onPress={() => handleThumbPress(index)}>
-                    <Image source={thumb} style={styles.thumbnail} />
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
+                  {/* Thumbnails */}
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.thumbnailScroll}
+                    contentContainerStyle={styles.thumbnailContainer}
+                  >
+                    {thumbs.map((thumb, index) => (
+                      <TouchableOpacity key={index} style={styles.thumbnailWrapper} onPress={() => handleThumbPress(index)}>
+                        <Image source={thumb} style={styles.thumbnail} />
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </>
+              )}
             </View></View></View></View>
 
       {/* Backyard Info */}
@@ -540,6 +609,20 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 250,
     position: 'relative',
+  },
+  imageLoaderContainer: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    borderRadius: 16,
+  },
+  loaderText: {
+    color: 'white',
+    fontSize: 14,
+    marginTop: 12,
+    fontWeight: '500',
   },
   mainImage: {
     width: '100%',

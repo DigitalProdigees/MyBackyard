@@ -168,6 +168,12 @@ export default function MyEarnings() {
 
   // Format currency
   const formatCurrency = (amount: number, currency: string = 'USD') => {
+    if (amount == null || isNaN(amount)) {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: currency,
+      }).format(0);
+    }
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: currency,
@@ -176,6 +182,9 @@ export default function MyEarnings() {
 
   // Format date
   const formatDate = (timestamp: number) => {
+    if (!timestamp || isNaN(timestamp)) {
+      return 'N/A';
+    }
     return new Date(timestamp).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
@@ -279,7 +288,8 @@ export default function MyEarnings() {
             />
           </TouchableOpacity>
           <View style={{alignItems:'center',justifyContent:'center',width:'100%'}}>
-          <Text style={styles.headerTitle}>My Earnings</Text></View>
+            <Text style={styles.headerTitle}>My Earnings</Text>
+          </View>
           <View style={styles.headerSpacer} />
         </View>
         <View style={styles.loadingContainer}>
@@ -302,7 +312,9 @@ export default function MyEarnings() {
           />
         </TouchableOpacity>
         <View style={{alignItems:'center',justifyContent:'center',width:'100%'}}>
-        <Text style={styles.headerTitle}>My Earnings</Text></View>        <View style={styles.headerSpacer} />
+          <Text style={styles.headerTitle}>My Earnings</Text>
+        </View>
+        <View style={styles.headerSpacer} />
       </View>
 
       <ScrollView
@@ -351,14 +363,14 @@ export default function MyEarnings() {
           <Text style={styles.balanceAmount}>{formatCurrency(accountBalance)}</Text>
         </View>
 
-        {/* Tab Toggle */}
+        
         <View style={styles.tabContainer}>
           <TouchableOpacity
             style={[styles.tab, activeTab === 'pending' && styles.activeTab]}
             onPress={() => setActiveTab('pending')}
           >
             <Text style={[styles.tabText, activeTab === 'pending' && styles.activeTabText]}>
-              Pending ({earnings.filter(earning => earning.status === 'pending' || earning.status === 'ready_for_payout').length})
+              Pending ({earnings.filter(earning => earning.status === 'pending' || earning.status === 'ready_for_payout').length.toString()})
             </Text>
           </TouchableOpacity>
           
@@ -367,7 +379,7 @@ export default function MyEarnings() {
             onPress={() => setActiveTab('completed')}
           >
             <Text style={[styles.tabText, activeTab === 'completed' && styles.activeTabText]}>
-              Completed ({earnings.filter(earning => earning.status === 'completed').length})
+              Completed ({earnings.filter(earning => earning.status === 'completed').length.toString()})
             </Text>
           </TouchableOpacity>
         </View>
