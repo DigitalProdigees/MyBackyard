@@ -43,6 +43,7 @@ const styles = StyleSheet.create({
   container: {
     width: '100%',
     height: 56,
+    marginBottom:20,
   },
   button: {
     width: '100%',
@@ -50,6 +51,7 @@ const styles = StyleSheet.create({
     borderRadius: 11,
     justifyContent: 'center',
     alignItems: 'center',
+    marginBottom:20,
   },
   text: {
     color: '#FFFFFF',

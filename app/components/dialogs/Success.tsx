@@ -64,9 +64,9 @@ export default function Success({
 							{/* Button - only show if buttonText is provided */}
 							{buttonText && (
 								<GradientButton
-									title={buttonText}
+									text={buttonText}
 									onPress={onButtonPress}
-									style={styles.button}
+									buttonStyle={styles.button}
 								/>
 							)}
 
@@ -130,6 +130,7 @@ const styles = StyleSheet.create({
 	},
 	button: {
 		width: '100%',
+		marginBottom:20,
 	},
 	errorIconCircle: {
 		backgroundColor: '#FF6B6B',
